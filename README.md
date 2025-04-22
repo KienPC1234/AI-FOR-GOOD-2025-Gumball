@@ -6,15 +6,15 @@ Kế hoạch triển khai
 
 ## 🎯 Nguyên tắc thiết kế tối giản
 
-- **Tối giản hóa giao diện**: Chỉ giữ lại những thành phần cần thiết, loại bỏ các yếu tố không cần thiết để tránh làm người dùng phân tâm
+- **Tối giản hóa giao diện**: Chỉ giữ lại những thành phần cần thiết, loại bỏ các yếu tố không cần thiết để tránh làm người dùng phân tâm
 
-- **Sử dụng không gian trắng hợp lý**: Tạo cảm giác thoáng đãng và giúp người dùng tập trung vào nội dung chính
+- **Sử dụng không gian trắng hợp lý**: Tạo cảm giác thoáng đãng và giúp người dùng tập trung vào nội dung chính
 
-- **Bảng màu đơn sắc**: Sử dụng các tông màu trung tính như trắng, xám, xanh nhạt để tạo cảm giác chuyên nghiệp và dễ chịu
+- **Bảng màu đơn sắc**: Sử dụng các tông màu trung tính như trắng, xám, xanh nhạt để tạo cảm giác chuyên nghiệp và dễ chịu
 
-- **Kiểu chữ rõ ràng**: Chọn font chữ dễ đọc, kích thước phù hợp để đảm bảo trải nghiệm người dùng tốt
+- **Kiểu chữ rõ ràng**: Chọn font chữ dễ đọc, kích thước phù hợp để đảm bảo trải nghiệm người dùng tốt
 
-- **Tập trung vào chức năng**: Mỗi thành phần trên giao diện phải phục vụ một mục đích cụ thể, tránh thêm các yếu tố trang trí không cần thiết
+- **Tập trung vào chức năng**: Mỗi thành phần trên giao diện phải phục vụ một mục đích cụ thể, tránh thêm các yếu tố trang trí không cần thiết
 
 ---
 
