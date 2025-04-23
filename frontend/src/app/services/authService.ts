@@ -58,7 +58,21 @@ export const loginUser = async (credentials: LoginCredentials): Promise<AuthResp
       return simpleResponse.data;
     } catch (fallbackError: any) {
       console.error('Simple login also failed:', fallbackError.response?.data || fallbackError.message);
-      throw new Error(error.response?.data?.detail || fallbackError.response?.data?.detail || 'Login failed');
+      // More comprehensive error handling
+      let errorMessage = 'Login failed';
+
+      // Try to extract a meaningful error message
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (fallbackError.response?.data?.detail) {
+        errorMessage = fallbackError.response.data.detail;
+      } else if (typeof error.response?.data === 'string') {
+        errorMessage = error.response.data;
+      } else if (typeof fallbackError.response?.data === 'string') {
+        errorMessage = fallbackError.response.data;
+      }
+
+      throw new Error(errorMessage);
     }
   }
 };

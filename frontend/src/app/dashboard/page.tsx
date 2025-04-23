@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,18 @@ import Link from 'next/link';
 
 const DashboardPage: React.FC = () => {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      // Redirect based on user role
+      if (user?.role === 'doctor') {
+        router.push('/doctor');
+      } else if (user?.role === 'patient') {
+        router.push('/patient');
+      }
+    }
+  }, [isAuthenticated, isLoading, user, router]);
 
   const cards = [
     {

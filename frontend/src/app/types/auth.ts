@@ -1,8 +1,12 @@
+export type UserRole = 'patient' | 'doctor' | 'admin';
+
 export interface User {
   id: number;
   email: string;
   is_active: boolean;
   is_superuser: boolean;
+  role: UserRole;
+  full_name: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -23,6 +27,8 @@ export interface LoginCredentials {
 export interface RegisterCredentials {
   email: string;
   password: string;
+  role?: UserRole;
+  full_name?: string;
 }
 
 export interface AuthResponse {

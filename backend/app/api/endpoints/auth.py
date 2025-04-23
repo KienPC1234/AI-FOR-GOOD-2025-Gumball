@@ -85,6 +85,8 @@ def register_user(
         hashed_password=get_password_hash(user_in.password),
         is_active=True,
         is_superuser=False,
+        role=models.UserRole(user_in.role) if user_in.role else models.UserRole.PATIENT,
+        full_name=user_in.full_name,
     )
     db.add(user)
     db.commit()
@@ -103,6 +105,14 @@ def register_user(
 def test_token(current_user: models.User = Depends(deps.get_current_user)) -> Any:
     """
     Test access token.
+    """
+    return current_user
+
+
+@router.get("/me", response_model=schemas.User)
+def get_current_user_info(current_user: models.User = Depends(deps.get_current_user)) -> Any:
+    """
+    Get current user information.
     """
     return current_user
 

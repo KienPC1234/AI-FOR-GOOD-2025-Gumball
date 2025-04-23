@@ -27,7 +27,13 @@ const LoginForm: React.FC = () => {
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {typeof error === 'string' ? error : 'Login failed. Please check your credentials.'}
+          {typeof error === 'string'
+            ? error
+            : error instanceof Object
+              ? JSON.stringify(error) === '{}'
+                ? 'Login failed. Please check your credentials.'
+                : 'Login failed: ' + (error.message || 'Invalid credentials')
+              : 'Login failed. Please check your credentials.'}
         </div>
       )}
 

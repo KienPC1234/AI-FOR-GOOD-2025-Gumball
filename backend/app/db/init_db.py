@@ -25,12 +25,50 @@ def init_db(db: Session) -> None:
             "email": "admin@example.com",
             "password": "adminpassword",
             "is_superuser": True,
+            "role": models.UserRole.ADMIN,
+            "full_name": "Admin User",
         }
         user = models.User(
             email=user_in["email"],
             hashed_password=get_password_hash(user_in["password"]),
             is_superuser=user_in["is_superuser"],
+            role=user_in["role"],
+            full_name=user_in["full_name"],
         )
         db.add(user)
         db.commit()
         logger.info("Superuser created")
+
+    # Create a doctor user if it doesn't exist
+    doctor = db.query(models.User).filter(
+        models.User.email == "doctor@example.com"
+    ).first()
+    if not doctor:
+        doctor = models.User(
+            email="doctor@example.com",
+            hashed_password=get_password_hash("doctorpassword"),
+            is_active=True,
+            is_superuser=False,
+            role=models.UserRole.DOCTOR,
+            full_name="Doctor Example",
+        )
+        db.add(doctor)
+        db.commit()
+        logger.info("Doctor user created")
+
+    # Create a patient user if it doesn't exist
+    patient = db.query(models.User).filter(
+        models.User.email == "patient@example.com"
+    ).first()
+    if not patient:
+        patient = models.User(
+            email="patient@example.com",
+            hashed_password=get_password_hash("patientpassword"),
+            is_active=True,
+            is_superuser=False,
+            role=models.UserRole.PATIENT,
+            full_name="Patient Example",
+        )
+        db.add(patient)
+        db.commit()
+        logger.info("Patient user created")

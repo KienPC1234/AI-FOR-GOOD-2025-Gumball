@@ -11,11 +11,33 @@ const Navbar: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const pathname = usePathname();
 
-  const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: FiHome, current: pathname === '/dashboard' },
-    { name: 'Upload Scan', href: '/upload', icon: FiUpload, current: pathname === '/upload' },
-    { name: 'Patients', href: '/patients', icon: FiList, current: pathname === '/patients' },
-  ];
+  // Get navigation links based on user role
+  const getNavigation = () => {
+    if (isAuthenticated) {
+      if (user?.role === 'doctor' || user?.is_superuser) {
+        return [
+          { name: 'Dashboard', href: '/doctor', icon: FiHome, current: pathname === '/doctor' },
+          { name: 'Patients', href: '/doctor/patients', icon: FiList, current: pathname === '/doctor/patients' },
+          { name: 'Scans', href: '/doctor/scans', icon: FiUpload, current: pathname === '/doctor/scans' },
+        ];
+      } else if (user?.role === 'patient') {
+        return [
+          { name: 'Dashboard', href: '/patient', icon: FiHome, current: pathname === '/patient' },
+          { name: 'Upload Scan', href: '/patient/upload', icon: FiUpload, current: pathname === '/patient/upload' },
+          { name: 'My Scans', href: '/patient/scans', icon: FiList, current: pathname === '/patient/scans' },
+        ];
+      }
+    }
+
+    // Default navigation for non-authenticated users or fallback
+    return [
+      { name: 'Dashboard', href: '/dashboard', icon: FiHome, current: pathname === '/dashboard' },
+      { name: 'Upload Scan', href: '/upload', icon: FiUpload, current: pathname === '/upload' },
+      { name: 'Patients', href: '/patients', icon: FiList, current: pathname === '/patients' },
+    ];
+  };
+
+  const navigation = getNavigation();
 
   const userNavigation = [
     { name: 'Your Profile', href: '/profile', icon: FiUser },

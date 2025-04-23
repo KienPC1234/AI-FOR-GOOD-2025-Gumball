@@ -11,6 +11,9 @@ interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => void;
+  isDoctor: () => boolean;
+  isPatient: () => boolean;
+  isAdmin: () => boolean;
 }
 
 const initialState: AuthState = {
@@ -95,10 +98,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Login error details:', error);
       let errorMessage = 'Invalid email or password';
 
+      // More comprehensive error handling
       if (error.message) {
         errorMessage = error.message;
       } else if (error.response?.data?.detail) {
         errorMessage = error.response.data.detail;
+      } else if (error.response?.data) {
+        // If response.data exists but not detail
+        const dataError = error.response.data;
+        if (typeof dataError === 'string') {
+          errorMessage = dataError;
+        } else if (dataError.message) {
+          errorMessage = dataError.message;
+        } else if (typeof dataError === 'object') {
+          // Try to extract a meaningful message from the object
+          const errorValues = Object.values(dataError).filter(v => !!v);
+          if (errorValues.length > 0) {
+            errorMessage = errorValues.join('. ');
+          }
+        }
       }
 
       setState({
@@ -145,6 +163,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     toast.info('You have been logged out.');
   };
 
+  const isDoctor = () => {
+    return state.user?.role === 'doctor' || state.user?.is_superuser;
+  };
+
+  const isPatient = () => {
+    return state.user?.role === 'patient' || state.user?.is_superuser;
+  };
+
+  const isAdmin = () => {
+    return state.user?.is_superuser || state.user?.role === 'admin';
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -152,6 +182,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         logout,
+        isDoctor,
+        isPatient,
+        isAdmin,
       }}
     >
       {children}
