@@ -1,4 +1,5 @@
 import axios from 'axios';
+import Cookies from 'js-cookie';
 import { LoginCredentials, RegisterCredentials, User, AuthResponse } from '../types/auth';
 
 const API_URL = 'http://localhost:8000/api';
@@ -19,7 +20,7 @@ const api = axios.create({
 // Add token to requests if available
 api.interceptors.request.use(
   (config) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = typeof window !== 'undefined' ? Cookies.get('token') : null;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,20 +31,47 @@ api.interceptors.request.use(
 
 export const loginUser = async (credentials: LoginCredentials): Promise<AuthResponse> => {
   try {
-    logApiCall('POST', '/auth/login-simple', { email: credentials.email });
-    const response = await api.post<AuthResponse>('/auth/login-simple', credentials);
+    // Try the standard OAuth2 login endpoint first
+    logApiCall('POST', '/auth/login', { email: credentials.email });
+
+    // Create form data for OAuth2 password flow
+    const formData = new URLSearchParams();
+    formData.append('username', credentials.email);
+    formData.append('password', credentials.password);
+
+    const response = await api.post<AuthResponse>('/auth/login', formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
     console.log('Login successful:', response.data);
     return response.data;
   } catch (error: any) {
     console.error('Login failed:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.detail || 'Login failed');
+
+    // Try the simple login endpoint as fallback
+    try {
+      logApiCall('POST', '/auth/login-simple', { email: credentials.email });
+      const simpleResponse = await api.post<AuthResponse>('/auth/login-simple', credentials);
+      console.log('Simple login successful:', simpleResponse.data);
+      return simpleResponse.data;
+    } catch (fallbackError: any) {
+      console.error('Simple login also failed:', fallbackError.response?.data || fallbackError.message);
+      throw new Error(error.response?.data?.detail || fallbackError.response?.data?.detail || 'Login failed');
+    }
   }
 };
 
 export const registerUser = async (credentials: RegisterCredentials): Promise<void> => {
   try {
     logApiCall('POST', '/auth/register', { email: credentials.email });
-    const response = await api.post('/auth/register', credentials);
+    const response = await api.post('/auth/register', {
+      email: credentials.email,
+      password: credentials.password,
+      is_active: true,
+      is_superuser: false
+    });
     console.log('Registration successful:', response.data);
   } catch (error: any) {
     console.error('Registration failed:', error.response?.data || error.message);
@@ -67,6 +95,20 @@ export const getCurrentUser = async (token: string): Promise<User> => {
     return response.data;
   } catch (error: any) {
     console.error('Failed to get user data:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.detail || 'Failed to get user data');
+
+    // Try to get user data from /auth/me endpoint as fallback
+    try {
+      logApiCall('GET', '/auth/me');
+      const meResponse = await api.get<User>('/auth/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      console.log('Got user from /me endpoint:', meResponse.data);
+      return meResponse.data;
+    } catch (fallbackError: any) {
+      console.error('Failed to get user data from /me endpoint:', fallbackError.response?.data || fallbackError.message);
+      throw new Error(error.response?.data?.detail || fallbackError.response?.data?.detail || 'Failed to get user data');
+    }
   }
 };
