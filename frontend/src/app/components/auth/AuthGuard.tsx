@@ -8,7 +8,8 @@ interface AuthGuardProps {
   children: React.ReactNode;
 }
 
-const publicPaths = ['/login', '/register'];
+const publicPaths = ['/', '/login', '/register'];
+const protectedPaths = ['/dashboard', '/upload', '/patients', '/profile', '/settings'];
 
 const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -18,12 +19,12 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   useEffect(() => {
     if (!isLoading) {
       // If not authenticated and trying to access a protected route
-      if (!isAuthenticated && !publicPaths.includes(pathname)) {
+      if (!isAuthenticated && protectedPaths.some(path => pathname.startsWith(path))) {
         router.push('/login');
       }
-      
+
       // If authenticated and trying to access login/register
-      if (isAuthenticated && publicPaths.includes(pathname)) {
+      if (isAuthenticated && ['/login', '/register'].includes(pathname)) {
         router.push('/dashboard');
       }
     }

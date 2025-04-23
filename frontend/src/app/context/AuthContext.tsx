@@ -40,7 +40,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isLoading: false,
             error: null,
           });
+          console.log('User authenticated:', user.email);
         } catch (error) {
+          console.error('Authentication error:', error);
           Cookies.remove('token');
           setState({
             ...initialState,
@@ -48,6 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         }
       } else {
+        console.log('No token found, user not authenticated');
         setState({
           ...initialState,
           isLoading: false,
@@ -62,13 +65,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setState({ ...state, isLoading: true, error: null });
       const { access_token } = await loginUser(credentials);
-      
+
       // Set token in cookie
       Cookies.set('token', access_token, { expires: 1 }); // 1 day expiry
-      
+
       // Get user data
       const user = await getCurrentUser(access_token);
-      
+
       setState({
         user,
         token: access_token,
@@ -76,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading: false,
         error: null,
       });
-      
+
       toast.success('Login successful!');
       router.push('/dashboard');
     } catch (error) {
@@ -93,12 +96,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setState({ ...state, isLoading: true, error: null });
       await registerUser(credentials);
-      
+
       setState({
         ...state,
         isLoading: false,
       });
-      
+
       toast.success('Registration successful! Please login.');
       router.push('/login');
     } catch (error) {

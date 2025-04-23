@@ -10,7 +10,7 @@ import { FiMail, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 const RegisterForm: React.FC = () => {
   const { register: registerUser, isLoading, error } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
-  
+
   const {
     register,
     handleSubmit,
@@ -28,13 +28,13 @@ const RegisterForm: React.FC = () => {
   return (
     <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
       <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">Create an Account</h2>
-      
+
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
         </div>
       )}
-      
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
@@ -54,7 +54,7 @@ const RegisterForm: React.FC = () => {
                   message: 'Invalid email address',
                 },
               })}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
               placeholder="you@example.com"
             />
           </div>
@@ -81,7 +81,7 @@ const RegisterForm: React.FC = () => {
                   message: 'Password must be at least 8 characters',
                 },
               })}
-              className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
               placeholder="••••••••"
             />
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
@@ -118,7 +118,7 @@ const RegisterForm: React.FC = () => {
                 required: 'Please confirm your password',
                 validate: value => value === password || 'Passwords do not match',
               })}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
               placeholder="••••••••"
             />
           </div>

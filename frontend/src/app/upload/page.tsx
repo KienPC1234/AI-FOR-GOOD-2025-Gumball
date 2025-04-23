@@ -1,10 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Layout from '../components/layout/Layout';
-import { FiUpload, FiFile, FiX } from 'react-icons/fi';
+import { FiUpload, FiFile, FiX, FiLock } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
 
 const UploadPage: React.FC = () => {
+  const router = useRouter();
+  const { isAuthenticated, user } = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const [patientInfo, setPatientInfo] = useState({
     name: '',
@@ -78,6 +82,27 @@ const UploadPage: React.FC = () => {
           Upload CT, MRI, or X-ray images for AI analysis
         </p>
       </div>
+
+      {!isAuthenticated ? (
+        <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
+          <div className="px-4 py-5 sm:p-6 text-center">
+            <FiLock className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-lg font-medium text-gray-900">Authentication Required</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              You need to be logged in to upload and analyze medical scans.
+            </p>
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => router.push('/login')}
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Go to Login
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
 
       <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
         <form onSubmit={handleSubmit}>
@@ -243,6 +268,7 @@ const UploadPage: React.FC = () => {
           </div>
         </form>
       </div>
+      )}
     </Layout>
   );
 };

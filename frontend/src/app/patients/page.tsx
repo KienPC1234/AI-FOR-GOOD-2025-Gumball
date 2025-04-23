@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Layout from '../components/layout/Layout';
-import { FiSearch, FiPlus, FiUser, FiCalendar, FiFileText } from 'react-icons/fi';
+import { FiSearch, FiPlus, FiUser, FiCalendar, FiFileText, FiLock } from 'react-icons/fi';
 import Link from 'next/link';
+import { useAuth } from '../context/AuthContext';
 
 // Mock data for patients
 const mockPatients = [
@@ -55,6 +57,8 @@ const mockPatients = [
 ];
 
 const PatientsPage: React.FC = () => {
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [patients] = useState(mockPatients);
 
@@ -82,22 +86,44 @@ const PatientsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="mt-4">
-        <div className="relative rounded-md shadow-sm max-w-lg">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiSearch className="h-5 w-5 text-gray-400" />
+      {!isAuthenticated ? (
+        <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
+          <div className="px-4 py-5 sm:p-6 text-center">
+            <FiLock className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-lg font-medium text-gray-900">Authentication Required</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              You need to be logged in to view patient records.
+            </p>
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => router.push('/login')}
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Go to Login
+              </button>
+            </div>
           </div>
-          <input
-            type="text"
-            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
-            placeholder="Search patients..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="mt-4">
+            <div className="relative rounded-md shadow-sm max-w-lg">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <FiSearch className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                placeholder="Search patients..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
 
-      <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-md">
+          <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-md">
+        </>
         <ul className="divide-y divide-gray-200">
           {filteredPatients.length > 0 ? (
             filteredPatients.map((patient) => (
@@ -158,6 +184,7 @@ const PatientsPage: React.FC = () => {
           )}
         </ul>
       </div>
+      )}
     </Layout>
   );
 };

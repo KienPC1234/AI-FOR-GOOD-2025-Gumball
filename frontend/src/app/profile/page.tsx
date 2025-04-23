@@ -1,16 +1,14 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../context/AuthContext';
-import { FiMail, FiCalendar, FiShield } from 'react-icons/fi';
+import { FiMail, FiCalendar, FiShield, FiLock } from 'react-icons/fi';
 
 const ProfilePage: React.FC = () => {
-  const { user, logout } = useAuth();
-
-  if (!user) {
-    return null;
-  }
+  const router = useRouter();
+  const { user, logout, isAuthenticated } = useAuth();
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -30,6 +28,27 @@ const ProfilePage: React.FC = () => {
           Manage your account information and settings
         </p>
       </div>
+
+      {!isAuthenticated ? (
+        <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
+          <div className="px-4 py-5 sm:p-6 text-center">
+            <FiLock className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-lg font-medium text-gray-900">Authentication Required</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              You need to be logged in to view your profile.
+            </p>
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => router.push('/login')}
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Go to Login
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : user ? (
 
       <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
         <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
@@ -104,6 +123,13 @@ const ProfilePage: React.FC = () => {
           </div>
         </div>
       </div>
+      ) : (
+        <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
+          <div className="px-4 py-5 sm:p-6 text-center text-gray-500">
+            Loading user profile...
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

@@ -3,6 +3,11 @@ import { LoginCredentials, RegisterCredentials, User, AuthResponse } from '../ty
 
 const API_URL = 'http://localhost:8000/api';
 
+// For development/debugging
+const logApiCall = (method: string, endpoint: string, data?: any) => {
+  console.log(`API ${method} ${endpoint}`, data || '');
+};
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_URL,
@@ -25,23 +30,30 @@ api.interceptors.request.use(
 
 export const loginUser = async (credentials: LoginCredentials): Promise<AuthResponse> => {
   try {
+    logApiCall('POST', '/auth/login-simple', { email: credentials.email });
     const response = await api.post<AuthResponse>('/auth/login-simple', credentials);
+    console.log('Login successful:', response.data);
     return response.data;
-  } catch (error) {
-    throw new Error('Login failed');
+  } catch (error: any) {
+    console.error('Login failed:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.detail || 'Login failed');
   }
 };
 
 export const registerUser = async (credentials: RegisterCredentials): Promise<void> => {
   try {
-    await api.post('/auth/register', credentials);
-  } catch (error) {
-    throw new Error('Registration failed');
+    logApiCall('POST', '/auth/register', { email: credentials.email });
+    const response = await api.post('/auth/register', credentials);
+    console.log('Registration successful:', response.data);
+  } catch (error: any) {
+    console.error('Registration failed:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.detail || 'Registration failed');
   }
 };
 
 export const getCurrentUser = async (token: string): Promise<User> => {
   try {
+    logApiCall('POST', '/auth/test-token');
     const response = await api.post<User>(
       '/auth/test-token',
       {},
@@ -51,8 +63,10 @@ export const getCurrentUser = async (token: string): Promise<User> => {
         },
       }
     );
+    console.log('Got current user:', response.data);
     return response.data;
-  } catch (error) {
-    throw new Error('Failed to get user data');
+  } catch (error: any) {
+    console.error('Failed to get user data:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.detail || 'Failed to get user data');
   }
 };

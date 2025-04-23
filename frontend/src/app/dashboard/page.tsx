@@ -1,13 +1,15 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../context/AuthContext';
-import { FiUpload, FiList, FiUser, FiActivity } from 'react-icons/fi';
+import { FiUpload, FiList, FiUser, FiActivity, FiLock } from 'react-icons/fi';
 import Link from 'next/link';
 
 const DashboardPage: React.FC = () => {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, isAuthenticated } = useAuth();
 
   const cards = [
     {
@@ -44,10 +46,37 @@ const DashboardPage: React.FC = () => {
     <Layout>
       <div className="py-6">
         <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Welcome back, {user?.email}
-        </p>
+        {isAuthenticated ? (
+          <p className="mt-1 text-sm text-gray-500">
+            Welcome back, {user?.email}
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-gray-500">
+            Please log in to access your dashboard
+          </p>
+        )}
       </div>
+
+      {!isAuthenticated ? (
+        <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
+          <div className="px-4 py-5 sm:p-6 text-center">
+            <FiLock className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-lg font-medium text-gray-900">Authentication Required</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              You need to be logged in to view your dashboard and access medical scan features.
+            </p>
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => router.push('/login')}
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Go to Login
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
 
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
@@ -96,6 +125,7 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
     </Layout>
   );
 };
