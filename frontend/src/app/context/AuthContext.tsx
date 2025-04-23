@@ -68,9 +68,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Login attempt with:', credentials.email);
       setState({ ...state, isLoading: true, error: null });
+
+      // Call the login service
       const response = await loginUser(credentials);
       console.log('Full login response:', response);
 
+      // Validate the token
       const access_token = response.access_token;
       if (!access_token) {
         throw new Error('No access token received');
@@ -80,20 +83,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       Cookies.set('token', access_token, { expires: 1 }); // 1 day expiry
       console.log('Token saved in cookie');
 
-      // Get user data
-      const user = await getCurrentUser(access_token);
-      console.log('User data retrieved:', user);
+      try {
+        // Get user data
+        const user = await getCurrentUser(access_token);
+        console.log('User data retrieved:', user);
 
-      setState({
-        user,
-        token: access_token,
-        isAuthenticated: true,
-        isLoading: false,
-        error: null,
-      });
+        setState({
+          user,
+          token: access_token,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
 
-      toast.success('Login successful!');
-      router.push('/dashboard');
+        toast.success('Login successful!');
+        router.push('/dashboard');
+      } catch (userError) {
+        console.error('Error getting user data:', userError);
+        // Even if we can't get user data, we're still logged in with a token
+        setState({
+          user: null,
+          token: access_token,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
+        toast.warning('Logged in but could not retrieve user profile');
+        router.push('/dashboard');
+      }
     } catch (error: any) {
       console.error('Login error details:', error);
       let errorMessage = 'Invalid email or password';
@@ -124,29 +141,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading: false,
         error: errorMessage,
       });
-      toast.error('Login failed. Please check your credentials.');
+      toast.error('Login failed: ' + errorMessage);
     }
   };
 
   const register = async (credentials: RegisterCredentials) => {
     try {
+      console.log('Starting registration process with:', credentials.email);
       setState({ ...state, isLoading: true, error: null });
+
       await registerUser(credentials);
+      console.log('Registration API call successful');
 
       setState({
         ...state,
         isLoading: false,
+        error: null
       });
 
       toast.success('Registration successful! Please login.');
       router.push('/login');
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Registration error details:', error);
+
+      let errorMessage = 'Registration failed';
+
+      // More comprehensive error handling
+      if (error.message) {
+        errorMessage = error.message;
+      }
+
       setState({
         ...state,
         isLoading: false,
-        error: 'Registration failed',
+        error: errorMessage,
       });
-      toast.error('Registration failed. Please try again.');
+
+      toast.error(`Registration failed: ${errorMessage}`);
     }
   };
 

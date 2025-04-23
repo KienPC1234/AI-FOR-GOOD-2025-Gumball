@@ -1,13 +1,10 @@
+'use client';
+
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { LoginCredentials, RegisterCredentials, User, AuthResponse } from '../types/auth';
 
 const API_URL = 'http://localhost:8000/api';
-
-// For development/debugging
-const logApiCall = (method: string, endpoint: string, data?: any) => {
-  console.log(`API ${method} ${endpoint}`, data || '');
-};
 
 // Create axios instance
 const api = axios.create({
@@ -29,73 +26,67 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-export const loginUser = async (credentials: LoginCredentials): Promise<AuthResponse> => {
+const loginUser = async (credentials: LoginCredentials): Promise<AuthResponse> => {
   try {
-    // Try the standard OAuth2 login endpoint first
-    logApiCall('POST', '/auth/login', { email: credentials.email });
+    console.log('Attempting login with credentials:', credentials);
 
-    // Create form data for OAuth2 password flow
-    const formData = new URLSearchParams();
-    formData.append('username', credentials.email);
-    formData.append('password', credentials.password);
-
-    const response = await api.post<AuthResponse>('/auth/login', formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+    // Try the login-simple endpoint
+    const response = await api.post<AuthResponse>('/auth/login-simple', {
+      email: credentials.email,
+      password: credentials.password
     });
 
-    console.log('Login successful:', response.data);
+    console.log('Login response:', response.data);
     return response.data;
   } catch (error: any) {
-    console.error('Login failed:', error.response?.data || error.message);
+    console.error('Login failed:', error);
+    console.error('Response data:', error.response?.data);
+    console.error('Status code:', error.response?.status);
 
-    // Try the simple login endpoint as fallback
-    try {
-      logApiCall('POST', '/auth/login-simple', { email: credentials.email });
-      const simpleResponse = await api.post<AuthResponse>('/auth/login-simple', credentials);
-      console.log('Simple login successful:', simpleResponse.data);
-      return simpleResponse.data;
-    } catch (fallbackError: any) {
-      console.error('Simple login also failed:', fallbackError.response?.data || fallbackError.message);
-      // More comprehensive error handling
-      let errorMessage = 'Login failed';
+    let errorMessage = 'Invalid email or password';
 
-      // Try to extract a meaningful error message
-      if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      } else if (fallbackError.response?.data?.detail) {
-        errorMessage = fallbackError.response.data.detail;
-      } else if (typeof error.response?.data === 'string') {
-        errorMessage = error.response.data;
-      } else if (typeof fallbackError.response?.data === 'string') {
-        errorMessage = fallbackError.response.data;
-      }
-
-      throw new Error(errorMessage);
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail;
     }
+
+    throw new Error(errorMessage);
   }
 };
 
-export const registerUser = async (credentials: RegisterCredentials): Promise<void> => {
+const registerUser = async (credentials: RegisterCredentials): Promise<void> => {
   try {
-    logApiCall('POST', '/auth/register', { email: credentials.email });
-    const response = await api.post('/auth/register', {
+    console.log('Attempting to register with credentials:', {
+      email: credentials.email,
+      role: credentials.role,
+      full_name: credentials.full_name
+    });
+
+    await api.post('/auth/register', {
       email: credentials.email,
       password: credentials.password,
+      role: credentials.role || 'patient',
+      full_name: credentials.full_name || '',
       is_active: true,
       is_superuser: false
     });
-    console.log('Registration successful:', response.data);
+
+    console.log('Registration successful');
   } catch (error: any) {
-    console.error('Registration failed:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.detail || 'Registration failed');
+    console.error('Registration failed:', error);
+    console.error('Response data:', error.response?.data);
+    console.error('Status code:', error.response?.status);
+
+    let errorMessage = 'Registration failed';
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail;
+    }
+
+    throw new Error(errorMessage);
   }
 };
 
-export const getCurrentUser = async (token: string): Promise<User> => {
+const getCurrentUser = async (token: string): Promise<User> => {
   try {
-    logApiCall('POST', '/auth/test-token');
     const response = await api.post<User>(
       '/auth/test-token',
       {},
@@ -105,24 +96,11 @@ export const getCurrentUser = async (token: string): Promise<User> => {
         },
       }
     );
-    console.log('Got current user:', response.data);
     return response.data;
   } catch (error: any) {
     console.error('Failed to get user data:', error.response?.data || error.message);
-
-    // Try to get user data from /auth/me endpoint as fallback
-    try {
-      logApiCall('GET', '/auth/me');
-      const meResponse = await api.get<User>('/auth/me', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      console.log('Got user from /me endpoint:', meResponse.data);
-      return meResponse.data;
-    } catch (fallbackError: any) {
-      console.error('Failed to get user data from /me endpoint:', fallbackError.response?.data || fallbackError.message);
-      throw new Error(error.response?.data?.detail || fallbackError.response?.data?.detail || 'Failed to get user data');
-    }
+    throw new Error(error.response?.data?.detail || 'Failed to get user data');
   }
 };
+
+export { loginUser, registerUser, getCurrentUser };
