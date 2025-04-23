@@ -63,14 +63,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (credentials: LoginCredentials) => {
     try {
+      console.log('Login attempt with:', credentials.email);
       setState({ ...state, isLoading: true, error: null });
-      const { access_token } = await loginUser(credentials);
+      const response = await loginUser(credentials);
+      console.log('Full login response:', response);
+
+      const access_token = response.access_token;
+      if (!access_token) {
+        throw new Error('No access token received');
+      }
 
       // Set token in cookie
       Cookies.set('token', access_token, { expires: 1 }); // 1 day expiry
+      console.log('Token saved in cookie');
 
       // Get user data
       const user = await getCurrentUser(access_token);
+      console.log('User data retrieved:', user);
 
       setState({
         user,
@@ -82,11 +91,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       toast.success('Login successful!');
       router.push('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Login error details:', error);
+      let errorMessage = 'Invalid email or password';
+
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+
       setState({
         ...state,
         isLoading: false,
-        error: 'Invalid email or password',
+        error: errorMessage,
       });
       toast.error('Login failed. Please check your credentials.');
     }
