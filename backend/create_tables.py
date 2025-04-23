@@ -30,23 +30,50 @@ def init_db():
     from sqlalchemy.orm import sessionmaker
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     db = SessionLocal()
-    
+
     try:
         # Check if there's already a superuser
         from app.models.user import User
         user = db.query(User).filter(User.is_superuser == True).first()
-        
+
         if not user:
             # Create a superuser
+            from app.models.user import UserRole
             admin_user = User(
                 email="admin@example.com",
                 hashed_password=get_password_hash("adminpassword"),
                 is_active=True,
                 is_superuser=True,
+                role=UserRole.ADMIN,
+                full_name="Admin User",
             )
+
+            # Create a doctor user
+            doctor_user = User(
+                email="doctor@example.com",
+                hashed_password=get_password_hash("doctorpassword"),
+                is_active=True,
+                is_superuser=False,
+                role=UserRole.DOCTOR,
+                full_name="Doctor Example",
+            )
+
+            # Create a patient user
+            patient_user = User(
+                email="patient@example.com",
+                hashed_password=get_password_hash("patientpassword"),
+                is_active=True,
+                is_superuser=False,
+                role=UserRole.PATIENT,
+                full_name="Patient Example",
+            )
+
+            # Add all users
             db.add(admin_user)
+            db.add(doctor_user)
+            db.add(patient_user)
             db.commit()
-            print("Admin user created successfully!")
+            print("Users created successfully!")
     except Exception as e:
         print(f"Error creating admin user: {e}")
     finally:

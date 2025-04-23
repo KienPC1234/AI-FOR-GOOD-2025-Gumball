@@ -49,22 +49,22 @@ def update_user_me(
     """
     current_user_data = jsonable_encoder(current_user)
     user_in = schemas.UserUpdate(**current_user_data)
-    
+
     if password is not None:
         user_in.password = password
     if email is not None:
         user_in.email = email
     if username is not None:
         user_in.username = username
-    
+
     if user_in.password:
         hashed_password = get_password_hash(user_in.password)
         current_user.hashed_password = hashed_password
-    
+
     if user_in.email:
         # Check if email is already taken
         user = db.query(models.User).filter(
-            models.User.email == user_in.email, 
+            models.User.email == user_in.email,
             models.User.id != current_user.id
         ).first()
         if user:
@@ -73,11 +73,11 @@ def update_user_me(
                 detail="Email already registered",
             )
         current_user.email = user_in.email
-    
+
     if user_in.username:
         # Check if username is already taken
         user = db.query(models.User).filter(
-            models.User.username == user_in.username, 
+            models.User.username == user_in.username,
             models.User.id != current_user.id
         ).first()
         if user:
@@ -86,7 +86,7 @@ def update_user_me(
                 detail="Username already taken",
             )
         current_user.username = user_in.username
-    
+
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
@@ -110,3 +110,29 @@ def read_user_by_id(
             status_code=400, detail="The user doesn't have enough privileges"
         )
     return user
+
+
+@router.delete("/delete-all", status_code=200)
+def delete_all_users(
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Delete all users except the default ones.
+    WARNING: This is a dangerous operation and should only be used for development.
+    """
+    # Keep the default users (admin, doctor, patient)
+    default_emails = ["admin@example.com", "doctor@example.com", "patient@example.com"]
+
+    # Delete all users except the default ones
+    users_to_delete = db.query(models.User).filter(
+        ~models.User.email.in_(default_emails)
+    ).all()
+
+    count = len(users_to_delete)
+
+    for user in users_to_delete:
+        db.delete(user)
+
+    db.commit()
+
+    return {"message": f"Successfully deleted {count} users. Default users preserved."}

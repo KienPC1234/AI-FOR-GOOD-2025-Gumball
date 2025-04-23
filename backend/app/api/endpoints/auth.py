@@ -12,6 +12,7 @@ from app.core import security
 from app.core.config import settings
 from app.core.email import send_registration_email
 from app.core.security import get_password_hash, verify_password
+from app.models.user import UserRole
 
 class EmailPasswordForm:
     def __init__(
@@ -22,6 +23,7 @@ class EmailPasswordForm:
         scope: str = Form(default=""),
         client_id: str = Form(default=None),
         client_secret: str = Form(default=None),
+        username: str = Form(default=None),  # Added for compatibility
     ):
         self.email = email
         self.password = password
@@ -29,6 +31,9 @@ class EmailPasswordForm:
         self.scope = scope
         self.client_id = client_id
         self.client_secret = client_secret
+        # If username is provided but email is not, use username as email
+        if username and not email:
+            self.email = username
 
 
 router = APIRouter()
@@ -80,14 +85,26 @@ def register_user(
     # No username check needed
 
     # Create new user
-    user = models.User(
-        email=user_in.email,
-        hashed_password=get_password_hash(user_in.password),
-        is_active=True,
-        is_superuser=False,
-        role=models.UserRole(user_in.role) if user_in.role else models.UserRole.PATIENT,
-        full_name=user_in.full_name,
-    )
+    try:
+        # Convert role string to enum
+        role = UserRole.PATIENT
+        if hasattr(user_in, 'role') and user_in.role:
+            try:
+                role = UserRole(user_in.role)
+            except ValueError:
+                print(f"Invalid role: {user_in.role}, using default PATIENT role")
+
+        user = models.User(
+            email=user_in.email,
+            hashed_password=get_password_hash(user_in.password),
+            is_active=True,
+            is_superuser=False,
+            role=role,
+            full_name=user_in.full_name if hasattr(user_in, 'full_name') and user_in.full_name else None
+        )
+    except Exception as e:
+        print(f"Error creating user: {e}")
+        raise HTTPException(status_code=400, detail=f"Error creating user: {str(e)}")
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -135,6 +152,36 @@ def login_simple(
     user = db.query(models.User).filter(models.User.email == login_data.email).first()
 
     if not user or not verify_password(login_data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
+
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    return {
+        "access_token": security.create_access_token(
+            user.id, expires_delta=access_token_expires
+        ),
+        "token_type": "bearer",
+    }
+
+
+@router.post("/login-basic", response_model=schemas.Token)
+def login_basic(
+    *,
+    db: Session = Depends(deps.get_db),
+    email: str,
+    password: str,
+) -> Any:
+    """
+    Basic login endpoint with simple parameters.
+    """
+    print(f"Login attempt with email: {email}")
+
+    # Authenticate with email
+    user = db.query(models.User).filter(models.User.email == email).first()
+
+    if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
 
     if not user.is_active:
