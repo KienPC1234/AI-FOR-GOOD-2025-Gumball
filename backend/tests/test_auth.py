@@ -1,8 +1,10 @@
+from datetime import timedelta
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app import models
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, create_refresh_token
 
 
 def test_register_user(client: TestClient, db: Session):
@@ -88,6 +90,7 @@ def test_test_token(client: TestClient, db: Session):
     )
     data = response.json()
     token = data["access_token"]
+    refresh_token = data["refresh_token"]
     
     # Test the token
     response = client.post(
@@ -98,3 +101,46 @@ def test_test_token(client: TestClient, db: Session):
     data = response.json()
     assert data["email"] == "test@example.com"
     assert data["username"] == "testuser"
+
+    # Test token refreshing
+    response = client.post(
+        "/api/auth/refresh-token",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "refreshToken": refresh_token
+        }
+    )
+    assert response.status_code == 200
+    data = response.json()
+    token = data["access_token"]
+    refresh_token = data["refresh_token"]
+
+    # Test refresh faked token
+    response = client.post(
+        "/api/auth/refresh-token",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "refreshToken": "faked"
+        }
+    )
+    assert response.status_code == 401
+    
+    # Test refresh outdated token
+    response = client.post(
+        "/api/auth/refresh-token",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "refreshToken": create_refresh_token("testuser", -timedelta(1))
+        }
+    )
+    assert response.status_code == 401
+
+    # Test refresh invalid token
+    response = client.post(
+        "/api/auth/refresh-token",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "refreshToken": create_refresh_token("invaliduser", timedelta(1))
+        }
+    )
+    assert response.status_code == 401

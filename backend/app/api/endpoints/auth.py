@@ -142,6 +142,7 @@ def login_simple(
         "access_token": security.create_access_token(
             user.id, expires_delta=access_token_expires
         ),
+        "refresh_token": security.create_refresh_token(user.id),
         "token_type": "bearer",
     }
 
@@ -160,11 +161,10 @@ def refresh_access_token(
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
     access_token = security.create_access_token(user_id)
-    new_refresh_token = security.create_refresh_token(user_id)
 
     return {
         "access_token": access_token,
-        "refresh_token": new_refresh_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
     }
 

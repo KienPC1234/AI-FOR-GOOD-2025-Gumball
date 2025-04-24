@@ -122,7 +122,6 @@ export const refreshToken = async (token: string, refToken: string): Promise<voi
         },
     });
     Cookies.set('token', response.data.access_token, { expires: 1 });
-    Cookies.set('refresh_token', response.data.refresh_token, { expires: 7 });
   } catch (error: any) {
     const errmsg = error.response?.data || error.message;
     console.error('Failed to refresh token:', errmsg);

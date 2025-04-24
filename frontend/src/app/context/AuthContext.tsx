@@ -75,10 +75,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('No access token received');
       }
 
-      const refresh_token = response.refresh_token;
-      // Will be made non-mandatory in the future
+      const refresh_token = response.refresh_token || null;
       if (!refresh_token) {
-        throw new Error('No refresh token received');
+        console.log('No refresh token received. Login session will expire soon.');
       }
 
       // Set token in cookie
@@ -111,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         }, 60000); // Check every minute
         return () => clearInterval(interval);
-    }, []);
+      }, []);
 
       toast.success('Login successful!');
       router.push('/dashboard');
