@@ -1,7 +1,8 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Form
+from jose import jwt, JWTError
+from fastapi import APIRouter, Depends, HTTPException, Form, Header
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -52,10 +53,14 @@ def login_access_token(
         raise HTTPException(status_code=400, detail="Inactive user")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = security.create_access_token(
+        user.id, expires_delta=access_token_expires
+    )
+    refresh_token = security.create_refresh_token(user.id)
+
     return {
-        "access_token": security.create_access_token(
-            user.id, expires_delta=access_token_expires
-        ),
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
     }
 
@@ -135,5 +140,28 @@ def login_simple(
         "access_token": security.create_access_token(
             user.id, expires_delta=access_token_expires
         ),
+        "token_type": "bearer",
+    }
+
+@router.post("/refresh-token", response_model=schemas.Token)
+def refresh_access_token(
+    refresh_token: str = Header(...),  # Pass refresh token in the header
+) -> Any:
+    try:
+        payload = jwt.decode(refresh_token, settings.REFRESH_SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        if datetime.utcnow() > datetime.utcfromtimestamp(payload.get("exp", 0)):
+            raise HTTPException(status_code=401, detail="Refresh token expired")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    access_token = security.create_access_token(user_id)
+    new_refresh_token = security.create_refresh_token(user_id)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": new_refresh_token,
         "token_type": "bearer",
     }
