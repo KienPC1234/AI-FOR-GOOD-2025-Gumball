@@ -13,6 +13,7 @@ from app.core import security
 from app.core.config import settings
 from app.core.email import send_registration_email
 from app.core.security import get_password_hash, verify_password
+from app.tasks import send_email_task
 
 class EmailPasswordForm:
     def __init__(
@@ -165,3 +166,14 @@ def refresh_access_token(
         "refresh_token": new_refresh_token,
         "token_type": "bearer",
     }
+
+def send_registration_email(email_to: str) -> None:
+    subject = f"Welcome to {settings.PROJECT_NAME}!"
+    html_content = f"""
+    <h1>Welcome to {settings.PROJECT_NAME}!</h1>
+    <p>Hi {email_to.split('@')[0]},</p>
+    <p>Thank you for registering with us. Your account has been created successfully.</p>
+    <p>Best regards,</p>
+    <p>The {settings.PROJECT_NAME} Team</p>
+    """
+    send_email_task.delay(email_to, subject, html_content)

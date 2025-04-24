@@ -5,6 +5,7 @@ __all__ = 'set_envs'
 def set_envs():
     os.environ["DATABASE_URL"] = "sqlite:///./app.db"
     os.environ["SECRET_KEY"] = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+    os.environ["REFRESH_SECRET_KEY"] = "lNQARHeNZg7_87Wh-z5rsU8rFgVwuap1GfZM9tjrMLU"
     os.environ["ALGORITHM"] = "HS256"
     os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
     os.environ["MAILJET_API_KEY"] = "4a36f7c82249e428aee78dec0498c82f"

@@ -1,6 +1,8 @@
 from typing import Any, Dict, Optional
 
+from fastapi import BackgroundTasks
 from mailjet_rest import Client
+from requests.exceptions import RequestException
 
 from app.core.config import settings
 
@@ -36,13 +38,24 @@ def send_email(
         ]
     }
 
-    response = mailjet.send.create(data=data)
+    try:
+        response = mailjet.send.create(data=data)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+    except RequestException as e:
+        print(f"Error sending email: {e}")
+        return {"error": str(e)}
     return response.json()
 
 
-def send_registration_email(email_to: str) -> Dict[str, Any]:
+def send_registration_email(email_to: str, background_tasks: BackgroundTasks) -> None:
     """
-    Send a registration confirmation email.
+    Schedule an email to be sent in the background.
+    """
+    background_tasks.add_task(_send_email_task, email_to)
+
+def _send_email_task(email_to: str) -> None:
+    """
+    Actual email-sending logic.
     """
     subject = f"Welcome to {settings.PROJECT_NAME}!"
     html_content = f"""
@@ -54,8 +67,8 @@ def send_registration_email(email_to: str) -> Dict[str, Any]:
     <p>The {settings.PROJECT_NAME} Team</p>
     """
 
-    return send_email(
+    send_email(
         email_to=email_to,
         subject=subject,
-        html_content=html_content,
+        html_content=html_content
     )
