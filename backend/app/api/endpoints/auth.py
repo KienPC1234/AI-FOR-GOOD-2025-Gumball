@@ -1,7 +1,8 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Form
+from jose import jwt, JWTError
+from fastapi import APIRouter, Depends, HTTPException, Form, Header, BackgroundTasks
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from app.core import security
 from app.core.config import settings
 from app.core.email import send_registration_email
 from app.core.security import get_password_hash, verify_password
+from app.tasks import send_email_task
 
 class EmailPasswordForm:
     def __init__(
@@ -52,10 +54,14 @@ def login_access_token(
         raise HTTPException(status_code=400, detail="Inactive user")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = security.create_access_token(
+        user.id, expires_delta=access_token_expires
+    )
+    refresh_token = security.create_refresh_token(user.id)
+
     return {
-        "access_token": security.create_access_token(
-            user.id, expires_delta=access_token_expires
-        ),
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
     }
 
@@ -65,6 +71,7 @@ def register_user(
     *,
     db: Session = Depends(deps.get_db),
     user_in: schemas.UserCreate,
+    background_tasks: BackgroundTasks,
 ) -> Any:
     """
     Register a new user.
@@ -92,7 +99,7 @@ def register_user(
 
     # Send registration email
     try:
-        send_registration_email(user.email)
+        send_registration_email(user.email, background_tasks)
     except Exception as e:
         print(f"Error sending registration email: {e}")
 
@@ -137,3 +144,50 @@ def login_simple(
         ),
         "token_type": "bearer",
     }
+
+@router.post("/refresh-token", response_model=schemas.Token)
+def refresh_access_token(
+    refresh_token: str = Header(..., alias="refreshToken"),  # Pass refresh token in the header
+) -> Any:
+    try:
+        payload = jwt.decode(refresh_token, settings.REFRESH_SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        if datetime.utcnow() > datetime.utcfromtimestamp(payload.get("exp", 0)):
+            raise HTTPException(status_code=401, detail="Refresh token expired")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    access_token = security.create_access_token(user_id)
+    new_refresh_token = security.create_refresh_token(user_id)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer",
+    }
+
+@router.post("/retry-registration-email")
+def retry_registration_email(
+    email: str = Form(...),
+) -> Any:
+    """
+    Retry sending the registration email.
+    """
+    try:
+        send_registration_email_task(email)  # Uses the renamed function
+        return {"message": "Registration email retry initiated successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retry email: {e}")
+
+def send_registration_email_task(email_to: str) -> None:
+    subject = f"Welcome to {settings.PROJECT_NAME}!"
+    html_content = f"""
+    <h1>Welcome to {settings.PROJECT_NAME}!</h1>
+    <p>Hi {email_to.split('@')[0]},</p>
+    <p>Thank you for registering with us. Your account has been created successfully.</p>
+    <p>Best regards,</p>
+    <p>The {settings.PROJECT_NAME} Team</p>
+    """
+    send_email_task.delay(email_to, subject, html_content)

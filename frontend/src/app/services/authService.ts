@@ -112,3 +112,20 @@ export const getCurrentUser = async (token: string): Promise<User> => {
     }
   }
 };
+
+export const refreshToken = async (token: string, refToken: string): Promise<void> => {
+  try {
+    const response = await api.post<AuthResponse>('/api/auth/refresh-token', {}, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          refreshToken: refToken,
+        },
+    });
+    Cookies.set('token', response.data.access_token, { expires: 1 });
+    Cookies.set('refresh_token', response.data.refresh_token, { expires: 7 });
+  } catch (error: any) {
+    const errmsg = error.response?.data || error.message;
+    console.error('Failed to refresh token:', errmsg);
+    throw new Error(errmsg || 'Failed to get user data');
+  }
+};

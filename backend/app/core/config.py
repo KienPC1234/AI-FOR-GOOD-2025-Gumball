@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
+    REFRESH_SECRET_KEY: str            # e.g. set in your .env
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7   # default 7 days
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Mailjet

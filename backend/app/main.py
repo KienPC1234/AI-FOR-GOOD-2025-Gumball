@@ -2,6 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.api import api_router
 from app.core.config import settings
@@ -12,6 +15,20 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
 )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(status_code=exc.status_code, content={
+        "detail": exc.detail
+    })
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(status_code=422, content={
+        "detail": "Validation error"
+    })
+
 
 # Set all CORS enabled origins
 if settings.BACKEND_CORS_ORIGINS:

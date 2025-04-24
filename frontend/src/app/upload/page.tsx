@@ -22,7 +22,18 @@ const UploadPage: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const fileArray = Array.from(e.target.files);
-      setFiles((prevFiles) => [...prevFiles, ...fileArray]);
+      const validFiles = fileArray.filter(file => {
+          if (file.size > 50 * 1024 * 1024) { // 50 MB limit
+              alert(`${file.name} exceeds the size limit of 50MB.`);
+              return false;
+          }
+          if (!['image/jpeg', 'image/png', 'application/dicom'].includes(file.type)) {
+              alert(`${file.name} is not a valid file type.`);
+              return false;
+          }
+          return true;
+      });
+      setFiles((prevFiles) => [...prevFiles, ...validFiles]);
     }
   };
 
