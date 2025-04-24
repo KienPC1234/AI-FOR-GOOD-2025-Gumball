@@ -113,12 +113,12 @@ export const getCurrentUser = async (token: string): Promise<User> => {
   }
 };
 
-export const refreshToken = async (token: string, refreshToken: string): Promise<void> => {
+export const refreshToken = async (token: string, refToken: string): Promise<void> => {
   try {
     const response = await api.post<AuthResponse>('/api/auth/refresh-token', {}, {
         headers: {
           Authorization: `Bearer ${token}`,
-          refreshToken: refreshToken,
+          refreshToken: refToken,
         },
     });
     Cookies.set('token', response.data.access_token, { expires: 1 });

@@ -30,14 +30,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = Cookies.get('token'), refreshToken = Cookies.get('refreshToken');
+      const token = Cookies.get('token'), refToken = Cookies.get('refreshToken');
       if (token) {
         try {
           const user = await getCurrentUser(token);
           setState({
             user,
             token,
-            refreshToken,
+            refToken,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setState({
         user,
         token: access_token,
-        refreshToken: refresh_token,
+        refToken: refresh_token,
         isAuthenticated: true,
         isLoading: false,
         error: null,
