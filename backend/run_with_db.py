@@ -1,11 +1,8 @@
-import env_setup
 import uvicorn
 from sqlalchemy import create_engine, inspect
 from app.db.base import Base
 from app.models.user import User  # Import all models here
 
-# Set environment variables
-env_setup.set_envs()
 
 # Create engine
 engine = create_engine("sqlite:///./app.db", connect_args={"check_same_thread": False})

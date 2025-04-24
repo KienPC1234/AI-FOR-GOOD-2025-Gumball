@@ -1,13 +1,9 @@
-import env_setup
 import sys
 from sqlalchemy import create_engine
 from app.db.base import Base
 from app.models.user import User  # Import all models here
 from app.core.config import settings
 from app.core.security import get_password_hash
-
-# Set environment variables if needed
-env_setup.set_envs()
 
 # Create engine
 engine = create_engine(settings.DATABASE_URL, connect_args={"check_same_thread": False})
