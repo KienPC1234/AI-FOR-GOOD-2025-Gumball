@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import { toast } from 'react-toastify';
 import { AuthState, LoginCredentials, RegisterCredentials, User } from '../types/auth';
-import { loginUser, registerUser, getCurrentUser } from '../services/authService';
+import { loginUser, registerUser, getCurrentUser, refreshToken } from '../services/authService';
 
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>;
@@ -16,6 +16,7 @@ interface AuthContextType extends AuthState {
 const initialState: AuthState = {
   user: null,
   token: null,
+  refToken: null,
   isAuthenticated: false,
   isLoading: true,
   error: null,
@@ -29,13 +30,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = Cookies.get('token');
+      const token = Cookies.get('token'), refreshToken = Cookies.get('refreshToken');
       if (token) {
         try {
           const user = await getCurrentUser(token);
           setState({
             user,
             token,
+            refreshToken,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -73,9 +75,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('No access token received');
       }
 
+      const refresh_token = response.refresh_token;
+      // Will be made non-mandatory in the future
+      if (!refresh_token) {
+        throw new Error('No refresh token received');
+      }
+
       // Set token in cookie
       Cookies.set('token', access_token, { expires: 1 }); // 1 day expiry
-      console.log('Token saved in cookie');
+      Cookies.set('refreshToken', refresh_token, { expires: 7}); // 7 day lifetime
+      console.log('Tokens saved in cookie');
 
       // Get user data
       const user = await getCurrentUser(access_token);
@@ -84,10 +93,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setState({
         user,
         token: access_token,
+        refreshToken: refresh_token,
         isAuthenticated: true,
         isLoading: false,
         error: null,
       });
+
+      useEffect(() => {
+        const interval = setInterval(async () => {
+            const token = Cookies.get('token'), refToken = Cookies.get('refreshToken');
+            if (token && refToken) {
+                const { exp } = JSON.parse(atob(token.split('.')[1]));
+                const now = Math.floor(Date.now() / 1000);
+                if (exp - now < 300) { // Refresh if less than 5 minutes remaining
+                  refreshToken(token, refToken);
+                }
+            }
+        }, 60000); // Check every minute
+        return () => clearInterval(interval);
+    }, []);
 
       toast.success('Login successful!');
       router.push('/dashboard');

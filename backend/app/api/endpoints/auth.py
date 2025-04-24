@@ -147,7 +147,7 @@ def login_simple(
 
 @router.post("/refresh-token", response_model=schemas.Token)
 def refresh_access_token(
-    refresh_token: str = Header(...),  # Pass refresh token in the header
+    refresh_token: str = Header(..., alias="refreshToken"),  # Pass refresh token in the header
 ) -> Any:
     try:
         payload = jwt.decode(refresh_token, settings.REFRESH_SECRET_KEY, algorithms=[settings.ALGORITHM])

@@ -10,6 +10,7 @@ export interface User {
 export interface AuthState {
   user: User | null;
   token: string | null;
+  refToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -27,5 +28,6 @@ export interface RegisterCredentials {
 
 export interface AuthResponse {
   access_token: string;
+  refresh_token: string;
   token_type: string;
 }

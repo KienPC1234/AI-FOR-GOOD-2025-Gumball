@@ -59,6 +59,16 @@ cp .env.example .env
 python main.py
 ```
 
+5. Celery Setup
+
+Install Redis and start the Redis server:
+
+```bash
+sudo apt install redis
+redis-server
+celery -A celery_app.celery_app worker --loglevel=info
+```
+
 ### API Documentation
 
 Once the application is running, you can access the Swagger documentation at:

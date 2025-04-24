@@ -10,6 +10,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def create_refresh_token(subject: Union[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Create a JWT refresh token.
+    """
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
