@@ -2,7 +2,7 @@ from datetime import timedelta, datetime
 from typing import Any
 
 from jose import jwt, JWTError
-from fastapi import APIRouter, Depends, HTTPException, Form, Header
+from fastapi import APIRouter, Depends, HTTPException, Form, Header, BackgroundTasks
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -71,6 +71,7 @@ def register_user(
     *,
     db: Session = Depends(deps.get_db),
     user_in: schemas.UserCreate,
+    background_tasks: BackgroundTasks,
 ) -> Any:
     """
     Register a new user.
@@ -98,7 +99,7 @@ def register_user(
 
     # Send registration email
     try:
-        send_registration_email(user.email)
+        send_registration_email(user.email, background_tasks)
     except Exception as e:
         print(f"Error sending registration email: {e}")
 
@@ -167,7 +168,20 @@ def refresh_access_token(
         "token_type": "bearer",
     }
 
-def send_registration_email(email_to: str) -> None:
+@router.post("/retry-registration-email")
+def retry_registration_email(
+    email: str = Form(...),
+) -> Any:
+    """
+    Retry sending the registration email.
+    """
+    try:
+        send_registration_email_task(email)  # Uses the renamed function
+        return {"message": "Registration email retry initiated successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retry email: {e}")
+
+def send_registration_email_task(email_to: str) -> None:
     subject = f"Welcome to {settings.PROJECT_NAME}!"
     html_content = f"""
     <h1>Welcome to {settings.PROJECT_NAME}!</h1>
