@@ -75,7 +75,7 @@ def root():
     """
     Root endpoint.
     """
-    return {"message": f"Welcome to {settings.PROJECT_NAME} API"}
+    return '"ok"'
 
 
 if __name__ == "__main__":
