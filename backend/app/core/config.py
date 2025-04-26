@@ -8,6 +8,18 @@ class Settings(BaseSettings):
     # General
     BASE_STORAGE_PATH: str
     BASE_USER_STORAGE_PATH: str
+    MAX_FILE_UPLOAD_SIZE: int
+    IMAGE_FILE_ALLOWED_EXTENSIONS: List[str] = [
+    ".png",".dicom",".jpe",".jpeg",".jpg",".pjpg",".jfif",".jfif-tbnl",".jif"
+    ]
+
+    @field_validator("IMAGE_FILE_ALLOWED_EXTENSIONS", mode="before")
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
+        if isinstance(v, str) and v.startswith("["):
+            return [i.strip() for i in v.rstrip()[:-1].split(",")]
+        elif isinstance(v, (list, str)):
+            return v
+        raise ValueError(v)
 
     # Server information
     PROJECT_NAME: str
@@ -15,8 +27,8 @@ class Settings(BaseSettings):
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
+        if isinstance(v, str) and v.startswith("["):
+            return [i.strip() for i in v.rstrip()[:-1].split(",")]
         elif isinstance(v, (list, str)):
             return v
         raise ValueError(v)

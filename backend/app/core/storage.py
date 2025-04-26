@@ -62,33 +62,27 @@ class Storage(StorageBase):
         return mapped
     
     @staticmethod
-    def _path_supplied(param_name_or_func: str | Callable = "path"):
-        param_name = "path"
+    def _path_supplied(function: Callable):
+        """
+        Automatically apply the relative path under parameter `path` to the base directory and perform security check.
+        """
 
-        def deco(function: Callable):
-            signature = inspect.signature(function)
-            path_param = signature.parameters.get(param_name, None)
+        signature = inspect.signature(function)
 
-            if not path_param:
-                return function
+        if "path" not in signature.parameters:
+            return function
+
+        @functools.wraps(function)
+        def wrapper(self: Storage, *args, **kwargs):
+            bound_args = signature.bind(self, *args, **kwargs)
+            bound_args.apply_defaults()
             
-            @functools.wraps(function)
-            def wrapper(self, *args, **kwargs):
-                bound_args = signature.bind(self, *args, **kwargs)
-                bound_args.apply_defaults()
-                
-                path_value = bound_args.arguments.get("path")
-                bound_args.arguments["path"] = self._map_path(path_value) if path_value is not None else path_value
-                
-                return function(self, *bound_args.args, **bound_args.kwargs)
+            path_value = bound_args.arguments.get("path")
+            bound_args.arguments["path"] = self._map_path(path_value) if path_value is not None else path_value
             
-            return wrapper
+            return function(self, *bound_args.args, **bound_args.kwargs)
         
-        if isinstance(param_name_or_func, str):
-            param_name = param_name_or_func
-            return deco
-        
-        return deco(param_name_or_func)
+        return wrapper
     
     @_path_supplied
     def new_dir(self, path: Path) -> Path:
@@ -97,6 +91,9 @@ class Storage(StorageBase):
 
     @_path_supplied
     def save_file(self, file: BufferedIOBase, path: Path) -> Path:
+        """
+        Store the content under the given path, then return the absolute path (relative to `self.base_dir`)
+        """
         with path.open("wb") as f:
             f.write(file.read())
         return path
@@ -122,14 +119,14 @@ class Storage(StorageBase):
     def exists(self, path: os.PathLike) -> bool:
         return self._map_path(path).exists()
 
-    @_path_supplied("directory")
-    def list_dir(self, directory: Optional[Path] = None, files_only: bool = False, folders_only: bool = False) -> Generator[Path, None, None]:
-        directory = directory or self.base_dir
+    @_path_supplied()
+    def list_dir(self, path: Optional[Path] = None, files_only: bool = False, folders_only: bool = False) -> Generator[Path, None, None]:
+        path = path or self.base_dir
         if files_only:
-            return (f for f in directory.iterdir() if f.is_file())
+            return (f for f in path.iterdir() if f.is_file())
         elif folders_only:
-            return (f for f in directory.iterdir() if not f.is_file())
-        return directory.iterdir()
+            return (f for f in path.iterdir() if not f.is_file())
+        return path.iterdir()
     
     def mountable(self, path: os.PathLike):
         return Mounted(self, path)

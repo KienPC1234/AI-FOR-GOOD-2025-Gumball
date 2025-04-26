@@ -23,8 +23,8 @@ const UploadPage: React.FC = () => {
     if (e.target.files) {
       const fileArray = Array.from(e.target.files);
       const validFiles = fileArray.filter(file => {
-          if (file.size > 50 * 1024 * 1024) { // 50 MB limit
-              alert(`${file.name} exceeds the size limit of 50MB.`);
+          if (file.size > 25 * 1024 * 1024) { // 25 MB limit
+              alert(`${file.name} exceeds the size limit of 25MB.`);
               return false;
           }
           if (!['image/jpeg', 'image/png', 'application/dicom'].includes(file.type)) {
