@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta, datetime
 from typing import Any
 
@@ -13,6 +14,7 @@ from app.core import security
 from app.core.config import settings
 from app.core.email import send_registration_email
 from app.core.security import get_password_hash, verify_password
+from app.db import DBWrapper
 from app.tasks import send_email_task
 
 class EmailPasswordForm:
@@ -38,14 +40,14 @@ router = APIRouter()
 
 @router.post("/login", response_model=schemas.Token)
 def login_access_token(
-    db: Session = Depends(deps.get_db), form_data: EmailPasswordForm = Depends()
+    db: DBWrapper = Depends(deps.get_db_wrapped), form_data: EmailPasswordForm = Depends()
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
     Use your email and password to login.
     """
     # Authenticate with email only
-    user = db.query(models.User).filter(models.User.email == form_data.email).first()
+    user = db.get_user_by_email(form_data.email)
 
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
@@ -53,11 +55,8 @@ def login_access_token(
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security.create_access_token(
-        user.id, expires_delta=access_token_expires
-    )
-    refresh_token = security.create_refresh_token(user.id)
+    access_token = security.create_access_token(user)
+    refresh_token = security.create_refresh_token(user)
 
     return {
         "access_token": access_token,
@@ -69,7 +68,7 @@ def login_access_token(
 @router.post("/register", response_model=schemas.User)
 def register_user(
     *,
-    db: Session = Depends(deps.get_db),
+    db: DBWrapper = Depends(deps.get_db_wrapped),
     user_in: schemas.UserCreate,
     background_tasks: BackgroundTasks,
 ) -> Any:
@@ -77,25 +76,23 @@ def register_user(
     Register a new user.
     """
     # Check if user with this email already exists
-    user = db.query(models.User).filter(models.User.email == user_in.email).first()
-    if user:
+    
+    if db.is_email_taken(user_in.email):
         raise HTTPException(
             status_code=400,
             detail="A user with this email already exists in the system.",
         )
 
-    # No username check needed
-
     # Create new user
     user = models.User(
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
+        security_stamp=uuid.uuid4().hex,
         is_active=True,
         is_superuser=False,
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+
+    db.save_user(user)
 
     # Send registration email
     try:
@@ -122,14 +119,14 @@ class LoginRequest(BaseModel):
 @router.post("/login-simple", response_model=schemas.Token)
 def login_simple(
     *,
-    db: Session = Depends(deps.get_db),
+    db: DBWrapper = Depends(deps.get_db_wrapped),
     login_data: LoginRequest,
 ) -> Any:
     """
     Simple login endpoint that doesn't use OAuth2 form.
     """
     # Authenticate with email only
-    user = db.query(models.User).filter(models.User.email == login_data.email).first()
+    user = db.get_user_by_email(login_data.email)
 
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
@@ -137,30 +134,36 @@ def login_simple(
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return {
-        "access_token": security.create_access_token(
-            user.id, expires_delta=access_token_expires
-        ),
-        "refresh_token": security.create_refresh_token(user.id),
+        "access_token": security.create_access_token(user),
+        "refresh_token": security.create_refresh_token(user),
         "token_type": "bearer",
     }
 
 @router.post("/refresh-token", response_model=schemas.Token)
 def refresh_access_token(
     refresh_token: str = Header(..., alias="refreshToken"),  # Pass refresh token in the header
+    current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     try:
         payload = jwt.decode(refresh_token, settings.REFRESH_SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("sub")
-        if user_id is None:
+        user_security_stamp = payload.get("iss")
+
+        if user_id is None or user_security_stamp is None:
             raise HTTPException(status_code=401, detail="Invalid token payload")
+        
+        if current_user.id != int(user_id) or \
+            current_user.security_stamp != user_security_stamp:
+
+            raise HTTPException(status_code=401, detail="Invalid token for this user")
+
         if datetime.utcnow() > datetime.utcfromtimestamp(payload.get("exp", 0)):
             raise HTTPException(status_code=401, detail="Refresh token expired")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    access_token = security.create_access_token(user_id)
+    access_token = security.compose_access_token(user_id, user_security_stamp)
 
     return {
         "access_token": access_token,
@@ -168,18 +171,20 @@ def refresh_access_token(
         "token_type": "bearer",
     }
 
-@router.post("/retry-registration-email")
-def retry_registration_email(
-    email: str = Form(...),
-) -> Any:
-    """
-    Retry sending the registration email.
-    """
-    try:
-        send_registration_email_task(email)  # Uses the renamed function
-        return {"message": "Registration email retry initiated successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retry email: {e}")
+""" Invalidate the endpoint for retrying registration email """
+""" Further checks should be done to ensure safeness """
+# @router.post("/retry-registration-email")
+# def retry_registration_email(
+#     email: str = Form(...),
+# ) -> Any:
+#     """
+#     Retry sending the registration email.
+#     """
+#     try:
+#         send_registration_email_task(email)  # Uses the renamed function
+#         return {"message": "Registration email retry initiated successfully."}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail="Failed to retry email")
 
 def send_registration_email_task(email_to: str) -> None:
     subject = f"Welcome to {settings.PROJECT_NAME}!"

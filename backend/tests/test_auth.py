@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app import models
-from app.core.security import get_password_hash, create_refresh_token
+from app.core.security import get_password_hash, compose_refresh_token
 
 
 def test_register_user(client: TestClient, db: Session):
@@ -130,7 +130,7 @@ def test_test_token(client: TestClient, db: Session):
         "/api/auth/refresh-token",
         headers={
             "Authorization": f"Bearer {token}",
-            "refreshToken": create_refresh_token("testuser", -timedelta(1))
+            "refreshToken": compose_refresh_token("testuser", "abc", -timedelta(1))
         }
     )
     assert response.status_code == 401
@@ -140,7 +140,7 @@ def test_test_token(client: TestClient, db: Session):
         "/api/auth/refresh-token",
         headers={
             "Authorization": f"Bearer {token}",
-            "refreshToken": create_refresh_token("invaliduser", timedelta(1))
+            "refreshToken": compose_refresh_token("invaliduser", "abc", timedelta(1))
         }
     )
     assert response.status_code == 401

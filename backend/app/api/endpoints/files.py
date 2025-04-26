@@ -18,7 +18,7 @@ router = APIRouter()
 def add_image(
     file: UploadFile = File(...),
     current_user: models.User = Depends(deps.get_current_active_user),
-    db: Session = Depends(deps.get_db),
+    # db: Session = Depends(deps.get_db),
 ) -> dict:
     """
     Upload an image and store it in the user's folder.
@@ -44,13 +44,13 @@ def add_image(
 @router.get("/images", response_model=List[str])
 def list_images(
     current_user: models.User = Depends(deps.get_current_active_user),
-    db: Session = Depends(deps.get_db),
+    # db: Session = Depends(deps.get_db),
 ) -> List[str]:
     """
     List all images uploaded by the current user.
     """
     try:
-        return (*user_storage.list_dir(user_storage.get_user_folder(current_user.id)),)
+        return user_storage.list_user_dir(current_user.id, as_tuple=True)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to list images")
 
@@ -59,7 +59,7 @@ def list_images(
 def remove_image(
     file_name: str,
     current_user: models.User = Depends(deps.get_current_active_user),
-    db: Session = Depends(deps.get_db),
+    # db: Session = Depends(deps.get_db),
 ) -> dict:
     """
     Remove an image by its file name from the user's folder.
@@ -78,7 +78,7 @@ def remove_image(
 def get_image_details(
     file_name: str,
     current_user: models.User = Depends(deps.get_current_active_user),
-    db: Session = Depends(deps.get_db),
+    # db: Session = Depends(deps.get_db),
 ) -> dict:
     """
     Get details of a specific image uploaded by the user.

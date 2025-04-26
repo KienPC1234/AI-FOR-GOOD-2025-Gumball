@@ -179,6 +179,10 @@ class UserStorage(Storage):
 
     def get_user_folder(self, user_id: int) -> Mounted:
         return Mounted(self, f"user_{user_id}")
+    
+    def list_user_dir(self, user_id: int, *, as_tuple: bool = False):
+        iterable = self.list_dir(self.get_user_folder(user_id))
+        return (*iterable,) if as_tuple else iterable
 
 # Instantiate the storage object
 base_storage = Storage()

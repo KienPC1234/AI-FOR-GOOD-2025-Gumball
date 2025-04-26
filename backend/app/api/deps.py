@@ -9,13 +9,24 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.core import security
 from app.core.config import settings
-from app.db.session import get_db
+from app.db import DBWrapper
+from app.db.session import get_db, SessionLocal
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=True)
 
+def get_db_wrapped():
+    """
+    Get a wrapped database session.
+    """
+
+    db = DBWrapper(SessionLocal())
+    try:
+        yield db
+    finally:
+        db.close()
 
 def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
+    db: DBWrapper = Depends(get_db_wrapped), token: str = Depends(oauth2_scheme)
 ) -> models.User:
     """
     Validate access token and return current user.
@@ -30,12 +41,13 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
-
-    user = db.query(models.User).filter(models.User.id == token_data.sub).first()
+    
+    user = db.get_user(token_data.sub)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+    
+    if user.security_stamp != token_data.security_stamp:
+        raise HTTPException(status_code=403, detail="Invalid token")
 
     return user
 
@@ -57,6 +69,8 @@ def get_current_active_superuser(
     """
     Get current active superuser.
     """
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
     if not current_user.is_superuser:
         raise HTTPException(
             status_code=400, detail="The user doesn't have enough privileges"

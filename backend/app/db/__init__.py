@@ -9,44 +9,74 @@ from app.utils import ranges
 from app.core.storage import user_storage
 
 
-class DBSession:
-    sess: Session
+class DBWrapper:
+    def __init__(self, session: Session):
+        self.session = session
 
-    def __init__(self, session: Optional[Session] = None):
-        self.sess = session if session else SessionLocal()
-
-    # User-related methods
     def get_user(self, user_id: int) -> Optional[User]:
+        """
+        Fetch a user by ID.
+        """
         return self.session.query(User).filter(User.id == user_id).first()
 
     def get_user_by_email(self, email: str) -> Optional[User]:
+        """
+        Fetch a user by email.
+        """
         return self.session.query(User).filter(User.email == email).first()
 
-    def get_all_users(self, skip: int = 0, limit: int = 100) -> List[User]:
-        return self.session.query(User).offset(skip).limit(limit).all()
+    def get_all_users(self, skip: int = 0, limit: int = 100, filters: List[Any] = None) -> List[User]:
+        """
+        Fetch all users with optional filters, pagination.
+        """
+        query = self.session.query(User)
+        if filters:
+            query = query.filter(*filters)
+        return query.offset(skip).limit(limit).all()
 
     def is_email_taken(self, email: str, exclude_user_id: Optional[int] = None) -> bool:
+        """
+        Check if an email is already taken, excluding a specific user ID.
+        """
         query = self.session.query(User).filter(User.email == email)
         if exclude_user_id:
             query = query.filter(User.id != exclude_user_id)
         return query.first() is not None
 
-    def is_username_taken(self, username: str, exclude_user_id: Optional[int] = None) -> bool:
-        query = self.session.query(User).filter(User.username == username)
-        if exclude_user_id:
-            query = query.filter(User.id != exclude_user_id)
-        return query.first() is not None
-
     def save_user(self, user: User) -> None:
+        """
+        Save a user to the database.
+        """
         self.session.add(user)
         self.session.commit()
         self.session.refresh(user)
 
-    def _command_query_users(self, skips: int = 0, limit: int = 100, filters: Any = ()):
-        query = self.sess.query(User)
-        if filters:
-            query = query.filter(*filters)
-        return query.offset(skips).limit(limit)
+    def soft_delete_user(self, user: User) -> None:
+        """
+        Soft delete a user by marking them as deleted and deactivating them.
+        """
+        user.soft_delete()
+        self.save_user(user)
+
+    def restore_user(self, user: User) -> None:
+        """
+        Restore a soft-deleted user.
+        """
+        user.soft_restore()
+        self.save_user(user)
+
+    def update_user_password(self, user: User, new_password: str) -> None:
+        """
+        Update a user's password and security stamp.
+        """
+        user.update_password(new_password)
+        self.save_user(user)
+
+    def close(self) -> None:
+        """
+        Close the database session.
+        """
+        self.session.close()
 
     def users(self, skips: int = 0, limit: int = 100, filters: Any = ()):
         """
@@ -59,6 +89,12 @@ class DBSession:
         Query a user.
         """
         return self._command_query_users(filters=filters).first()
+
+    def _command_query_users(self, skips: int = 0, limit: int = 100, filters: Any = ()):
+        query = self.sess.query(User)
+        if filters:
+            query = query.filter(*filters)
+        return query.offset(skips).limit(limit)
 
     def find_users(
         self,
@@ -93,21 +129,3 @@ class DBSession:
 
         query_cmd = self._command_query_users(skips=skips, limit=limit, filters=filters)
         return query_cmd if raw else (query_cmd.first() if limit == 1 else query_cmd.all())
-
-    def check_duplicates(self, id: int, *, email: Optional[str] = None, username: Optional[str] = None) -> bool:
-        """
-        Check if accounts with identical information exist.
-        """
-        filters = [User.id != id]
-        email and filters.append(User.email == email)
-        username and filters.append(User.username == username)
-        return bool(self.sess.query(User).filter(*filters).first())
-
-    # File-related methods
-
-    def list_user_files(self, user_id: int) -> List[str]:
-        """
-        List all items stored in the user's folder.
-        """
-        folder = user_storage.get_user_folder(user_id)
-        return user_storage.list_dir(folder)
