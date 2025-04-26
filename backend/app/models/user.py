@@ -1,29 +1,35 @@
 import uuid
 
 from sqlalchemy import Boolean, Column, Integer, String, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from app.db.base_class import Base
 from app.core.security import get_password_hash
+from app.db.base_class import Base
+from app.states import UserRole, IntEnumType
 
 
 class User(Base):
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    security_stamp = Column(String, nullable=False)
-    is_active = Column(Boolean(), default=True)
-    is_superuser = Column(Boolean(), default=False)
+    id: Mapped[int] = Column(Integer, primary_key=True, index=True)
+    email: Mapped[str] = Column(String, unique=True, index=True, nullable=False)
+    hashed_password: Mapped[str] = Column(String, nullable=False)
+    security_stamp: Mapped[str] = Column(String, nullable=False)
+    is_active: Mapped[bool] = Column(Boolean(), default=True)
+    is_superuser: Mapped[bool] = Column(Boolean(), default=False)
+    user_role: Mapped[UserRole] = mapped_column(IntEnumType(UserRole), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
+    
+    # Patients created by this user (e.g., a doctor)
+    created_patients = relationship("Patient", back_populates="created_by_user", cascade="all, delete-orphan")
 
     def update_security_stamp(self):
         """
         Updates the security stamp for the user.
         Should be called on security-sensitive changes (e.g., password change).
         """
-        self.security_stamp = str(uuid.uuid4())
+        self.security_stamp = uuid.uuid4().hex
 
     def update_password(self, plain_password: str):
         """

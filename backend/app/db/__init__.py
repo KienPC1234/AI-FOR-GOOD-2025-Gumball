@@ -1,17 +1,29 @@
+import functools
 from typing import Optional, Any, List
 
 from sqlalchemy.orm import Session
 
-from app.db.session import SessionLocal
 from app.core.security import get_password_hash
-from app.models import User
+from app.db.base import Base
+from app.models import Patient, User
 from app.utils import ranges
-from app.core.storage import user_storage
-
 
 class DBWrapper:
     def __init__(self, session: Session):
         self.session = session
+        self.commit = session.commit
+
+    # General save method
+
+    def save_model(self, model: Base):
+        """
+        Save a user to the database.
+        """
+        self.session.add(model)
+        self.commit()
+        self.session.refresh(model)
+
+    # User-related methods
 
     def get_user(self, user_id: int) -> Optional[User]:
         """
@@ -47,9 +59,7 @@ class DBWrapper:
         """
         Save a user to the database.
         """
-        self.session.add(user)
-        self.session.commit()
-        self.session.refresh(user)
+        self.save_model(user)
 
     def soft_delete_user(self, user: User) -> None:
         """
@@ -63,13 +73,6 @@ class DBWrapper:
         Restore a soft-deleted user.
         """
         user.soft_restore()
-        self.save_user(user)
-
-    def update_user_password(self, user: User, new_password: str) -> None:
-        """
-        Update a user's password and security stamp.
-        """
-        user.update_password(new_password)
         self.save_user(user)
 
     def close(self) -> None:
@@ -88,7 +91,7 @@ class DBWrapper:
         """
         Query a user.
         """
-        return self._command_query_users(filters=filters).first()
+        return self._command_query_users(limit=1, filters=filters).first()
 
     def _command_query_users(self, skips: int = 0, limit: int = 100, filters: Any = ()):
         query = self.sess.query(User)
@@ -129,3 +132,41 @@ class DBWrapper:
 
         query_cmd = self._command_query_users(skips=skips, limit=limit, filters=filters)
         return query_cmd if raw else (query_cmd.first() if limit == 1 else query_cmd.all())
+    
+
+    # Patient-related methods
+
+    def get_patient(self, patient_id: int) -> Optional[Patient]:
+        return self.session.query(Patient).filter(Patient.id == patient_id).first()
+
+    def get_patients_for_doctor(self, doctor_id: int, skip: int = 0, limit: int = 100) -> List[Patient]:
+        """
+        Fetch all patients for a specific doctor.
+        """
+        return (
+            self.session.query(Patient)
+            .filter(Patient.doctor_id == doctor_id, Patient.is_active == True)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    def get_doctor_for_patient(self, patient_id: int) -> Optional[User]:
+        """
+        Fetch the doctor associated with a specific patient.
+        """
+        patient = self.session.query(Patient).filter(Patient.id == patient_id).first()
+        if patient:
+            return self.get_user(patient.doctor_id)
+        return None
+
+    def add_patient(self, patient: Patient) -> None:
+        self.save_model(patient)
+
+    def update_patient(self, patient: Patient) -> None:
+        self.commit()
+        self.session.refresh(patient)
+
+    def delete_patient(self, patient: Patient) -> None:
+        patient.is_active = False
+        self.commit()

@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.email import send_registration_email
 from app.core.security import get_password_hash, verify_password
 from app.db import DBWrapper
+from app.states import UserRole
 from app.tasks import send_email_task
 
 class EmailPasswordForm:
@@ -82,11 +83,19 @@ def register_user(
             status_code=400,
             detail="A user with this email already exists in the system.",
         )
+    
+    role = getattr(UserRole, user_in.user_role.upper(), None)
+    if not role:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid user role.",
+        )
 
     # Create new user
     user = models.User(
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
+        user_role=user_in.user_role,
         security_stamp=uuid.uuid4().hex,
         is_active=True,
         is_superuser=False,
