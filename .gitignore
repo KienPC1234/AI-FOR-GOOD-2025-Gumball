@@ -1,0 +1,21 @@
+# Ignore virtual environments
+.venv/
+.conda/
+
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore environment files
+.env
+
+# Ignore other system files
+*.log
+*.sqlite3
+
+# VSCode settings (nếu bạn dùng VSCode)
+.vscode/
+
+# Windows system files
+Thumbs.db
