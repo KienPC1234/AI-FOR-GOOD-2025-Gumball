@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     BASE_USER_STORAGE_PATH: str
     MAX_FILE_UPLOAD_SIZE: int
     IMAGE_FILE_ALLOWED_EXTENSIONS: List[str] = [
-    ".png",".dicom",".jpe",".jpeg",".jpg",".pjpg",".jfif",".jfif-tbnl",".jif"
+    ".png",".dcm",".jpe",".jpeg",".jpg",".pjpg",".jfif",".jfif-tbnl",".jif"
     ]
 
     @field_validator("IMAGE_FILE_ALLOWED_EXTENSIONS", mode="before")
