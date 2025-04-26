@@ -3,7 +3,9 @@ from typing import Any, Optional, Union
 
 from jose import jwt
 from passlib.context import CryptContext
+from pydantic import ValidationError
 
+from app import schemas
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -54,3 +56,13 @@ def get_password_hash(password: str) -> str:
     Hash a password.
     """
     return pwd_context.hash(password)
+
+
+def load_token(token: str):
+    try:
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
+        return schemas.TokenPayload(**payload)
+    except (jwt.JWTError, ValidationError):
+        return None

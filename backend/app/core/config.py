@@ -5,6 +5,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # General
+    BASE_STORAGE_PATH: str
+    BASE_USER_STORAGE_PATH: str
+
+    # Server information
     PROJECT_NAME: str
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:8000", "http://localhost:3000"]
 

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.api import deps
 from app.core.security import get_password_hash
+from app.db import DBSession
 
 router = APIRouter()
 
@@ -21,6 +22,10 @@ def read_users(
     """
     Retrieve users. Only for superusers.
     """
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=400, detail="The user doesn't have enough privileges"
+        )
     users = db.query(models.User).offset(skip).limit(limit).all()
     return users
 
@@ -47,49 +52,18 @@ def update_user_me(
     """
     Update own user.
     """
-    current_user_data = jsonable_encoder(current_user)
-    user_in = schemas.UserUpdate(**current_user_data)
-    
-    if password is not None:
-        user_in.password = password
-    if email is not None:
-        user_in.email = email
-    if username is not None:
-        user_in.username = username
-    
-    if user_in.password:
-        hashed_password = get_password_hash(user_in.password)
-        current_user.hashed_password = hashed_password
-    
-    if user_in.email:
-        # Check if email is already taken
-        user = db.query(models.User).filter(
-            models.User.email == user_in.email, 
-            models.User.id != current_user.id
-        ).first()
-        if user:
-            raise HTTPException(
-                status_code=400,
-                detail="Email already registered",
-            )
-        current_user.email = user_in.email
-    
-    if user_in.username:
-        # Check if username is already taken
-        user = db.query(models.User).filter(
-            models.User.username == user_in.username, 
-            models.User.id != current_user.id
-        ).first()
-        if user:
-            raise HTTPException(
-                status_code=400,
-                detail="Username already taken",
-            )
-        current_user.username = user_in.username
-    
-    db.add(current_user)
-    db.commit()
-    db.refresh(current_user)
+    db_session = DBSession(db)
+
+    if email and current_user.email != email and db_session.is_email_taken(email, exclude_user_id=current_user.id):
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    if username and current_user.username != username and db_session.is_username_taken(username, exclude_user_id=current_user.id):
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    if password:
+        current_user.hashed_password = get_password_hash(password)
+
+    db_session.save_user(current_user)
     return current_user
 
 
@@ -102,11 +76,10 @@ def read_user_by_id(
     """
     Get a specific user by id.
     """
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if user == current_user:
+    db_session = DBSession(db)
+    user = db_session.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user == current_user or current_user.is_superuser:
         return user
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=400, detail="The user doesn't have enough privileges"
-        )
-    return user
+    raise HTTPException(status_code=400, detail="The user doesn't have enough privileges")
