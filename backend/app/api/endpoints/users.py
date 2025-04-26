@@ -54,11 +54,15 @@ def update_user_me(
     """
     db_session = DBSession(db)
 
-    if email and current_user.email != email and db_session.is_email_taken(email, exclude_user_id=current_user.id):
-        raise HTTPException(status_code=400, detail="Email already registered")
+    if email:
+        if current_user.email != email and db_session.is_email_taken(email, exclude_user_id=current_user.id):
+            raise HTTPException(status_code=400, detail="Email already registered")
+        current_user.email = email
 
-    if username and current_user.username != username and db_session.is_username_taken(username, exclude_user_id=current_user.id):
-        raise HTTPException(status_code=400, detail="Username already taken")
+    if username:
+        if current_user.username != username and db_session.is_username_taken(username, exclude_user_id=current_user.id):
+            raise HTTPException(status_code=400, detail="Username already taken")
+        current_user.username = username
 
     if password:
         current_user.hashed_password = get_password_hash(password)
