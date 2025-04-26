@@ -163,7 +163,7 @@ def refresh_access_token(
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    access_token = security.compose_access_token(user_id, user_security_stamp)
+    access_token = security.create_access_token(current_user)
 
     return {
         "access_token": access_token,
