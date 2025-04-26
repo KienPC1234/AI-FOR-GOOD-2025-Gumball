@@ -33,25 +33,22 @@ def process_xray_image(img_path):
             raise ValueError("Kích thước ảnh nhỏ hơn 2 chiều")
         img = img[None, :, :]  # Shape: [1, H, W]
 
-        # Chuyển thành tensor và áp dụng biến đổi
         img_tensor = torch.from_numpy(img).float()
         transform = transforms.Compose([
-            transforms.Resize((512, 512)),  # Độ phân giải gốc
+            transforms.Resize((512, 512)),  
             xrv.datasets.XRayCenterCrop(),
         ])
         img_tensor = transform(img_tensor)
-        img_tensor = img_tensor.unsqueeze(0)  # Shape: [1, 1, 512, 512]
+        img_tensor = img_tensor.unsqueeze(0) 
         img_tensor.requires_grad_(True)
 
-        # Phân loại
         with torch.no_grad():
             preds = model(img_tensor).cpu()
             output = {k: float(v) for k, v in zip(model.pathologies, preds[0])}
 
-        # Lọc bệnh lý có xác suất > 0.5
+
         pathologies_above_0_5 = [(k, v) for k, v in output.items() if v > 0.5]
 
-        # Tìm lớp mục tiêu cho Grad-CAM
         def find_target_layer(model):
             base_model = model.module if isinstance(model, torch.nn.DataParallel) else model
             try:
@@ -79,7 +76,7 @@ def process_xray_image(img_path):
             except AttributeError:
                 raise AttributeError("Không tìm thấy backbone trong mô hình.")
 
-        # Triển khai Grad-CAM
+
         def compute_gradcam(model, img_tensor, target_class_idx):
             activation_list = []
             gradient_list = []
@@ -112,18 +109,16 @@ def process_xray_image(img_path):
             gradcam = gradcam.squeeze().detach().cpu().numpy()
             gradcam = (gradcam - gradcam.min()) / (gradcam.max() - gradcam.min() + 1e-8)
 
-            # Tạo ảnh heatmap phủ lên ảnh gốc
             img_np = img_tensor[0, 0].detach().cpu().numpy()
-            heatmap_rgb = cm.jet(gradcam)[:, :, :3]  # Chuyển heatmap sang RGB
-            overlay = (img_np - img_np.min()) / (img_np.max() - img_np.min())  # Chuẩn hóa ảnh gốc
-            overlay = plt.cm.gray(overlay)[:, :, :3]  # Chuyển ảnh gốc sang RGB
+            heatmap_rgb = cm.jet(gradcam)[:, :, :3] 
+            overlay = (img_np - img_np.min()) / (img_np.max() - img_np.min()) 
+            overlay = plt.cm.gray(overlay)[:, :, :3] 
             alpha = 0.5
             combined = (1 - alpha) * overlay + alpha * heatmap_rgb
             combined = np.clip(combined, 0, 1)
 
             return combined
 
-        # Tạo heatmap Grad-CAM cho các bệnh lý
         gradcam_images = []
         for pathology, prob in pathologies_above_0_5:
             target_class_idx = model.pathologies.index(pathology)

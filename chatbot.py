@@ -3,7 +3,6 @@ import io
 from PIL import Image
 from AFG_Gumball.utils.AI_Chatbot import PatientAI, DoctorDiagnosticAI, DoctorEnhanceAI
 
-
 def test_system():
     print("=== Bắt đầu kiểm tra hệ thống chẩn đoán y tế ===")
     
@@ -35,7 +34,7 @@ def test_system():
         print(f"Chẩn đoán: {diagnosis}")
         print("Heatmap arrays:")
         for h in heatmap_arrays:
-            print(f"- Pathology: {h['pathology']}, Shape: {h['heatmap_array'].shape}")
+            print(f"- Bệnh lý: {h['pathology']}, Xác suất: {h['probability']:.2f}, Shape: {h['heatmap_array'].shape}")
 
         # Test chẩn đoán kết hợp với ảnh X-quang gốc
         print("\n1.2.2. Chẩn đoán kết hợp với ảnh X-quang gốc:")
@@ -45,16 +44,16 @@ def test_system():
         print(f"Chẩn đoán: {diagnosis_with_image}")
         print("Heatmap arrays:")
         for h in heatmap_arrays_with_image:
-            print(f"- Pathology: {h['pathology']}, Shape: {h['heatmap_array'].shape}")
+            print(f"- Bệnh lý: {h['pathology']}, Xác suất: {h['probability']:.2f}, Shape: {h['heatmap_array'].shape}")
 
         # 2. Kiểm tra DoctorDiagnosticAI
         print("\n2. Kiểm tra DoctorDiagnosticAI...")
         doctor_diag_ai = DoctorDiagnosticAI()
         print("DoctorDiagnosticAI khởi tạo thành công")
 
-        # 2.1. Test tạo bệnh án
+        # 2.1. Test tạo bệnh án (không dùng ảnh gốc)
         patient_info = "Nữ, 50 tuổi, tiền sử cao huyết áp"
-        image_paths = ["sample_xray.jpg"]  # Thay bằng đường dẫn thực tế
+        image_paths = ["xray.jpg"]  # Thay bằng đường dẫn thực tế
         medical_record = doctor_diag_ai.create_medical_record(
             patient_info, symptoms, image_paths, include_xray_image=False
         )
@@ -101,7 +100,6 @@ if __name__ == "__main__":
     print("2. Thay 'your_actual_api_key_here' bằng API key thực tế từ Google.")
     print("3. Đảm bảo file .env không được commit lên git (thêm vào .gitignore).")
     print("4. Nếu không dùng .env, có thể set biến môi trường trực tiếp:")
-    print("   export GEMINI_API_KEY=your_actual_api_key_here (Linux/Mac)")
     print("   set GEMINI_API_KEY=your_actual_api_key_here (Windows)")
     print("================================\n")
 

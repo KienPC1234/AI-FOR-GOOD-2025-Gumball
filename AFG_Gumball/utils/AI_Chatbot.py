@@ -8,7 +8,6 @@ from ..xray.xray import process_xray_image
 
 class GeminiAI:
     def __init__(self, model="gemini-2.0-flash"):
-        # Tải biến môi trường
         load_dotenv()
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
@@ -17,7 +16,6 @@ class GeminiAI:
         self.model = model
 
     def generate_content(self, contents):
-        # Hàm hỗ trợ gửi nội dung đa phương tiện (text, ảnh)
         try:
             response = self.client.models.generate_content(
                 model=self.model,
@@ -30,7 +28,7 @@ class GeminiAI:
 class PatientAI:
     def __init__(self):
         self.gemini = GeminiAI()
-        self.max_images = 5  # Giới hạn số lượng ảnh để tránh quá tải
+        self.max_images = 5 
 
     def answer_question(self, question):
         # Kiểm tra đầu vào
