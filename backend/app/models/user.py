@@ -1,12 +1,21 @@
 import uuid
+from typing import List
 
-from sqlalchemy import Boolean, Column, Integer, String, DateTime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Column, Integer, String, DateTime, ForeignKey, Table
+from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 from sqlalchemy.sql import func
 
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, generate_security_stamp
 from app.db.base_class import Base
 from app.states import UserRole, IntEnumType
+
+# Association table for Doctor-Patient User relationship
+doctor_patient_association = Table(
+    "doctor_patient_association",
+    Base.metadata,
+    Column("doctor_user_id", Integer, ForeignKey("users.id"), primary_key=True),
+    Column("patient_user_id", Integer, ForeignKey("users.id"), primary_key=True),
+)
 
 
 class User(Base):
@@ -16,20 +25,50 @@ class User(Base):
     security_stamp: Mapped[str] = Column(String, nullable=False)
     is_active: Mapped[bool] = Column(Boolean(), default=True)
     is_superuser: Mapped[bool] = Column(Boolean(), default=False)
-    user_role: Mapped[UserRole] = mapped_column(IntEnumType(UserRole), nullable=False)
+    role: Mapped[UserRole] = mapped_column(IntEnumType(UserRole), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
-    
-    # Patients created by this user (e.g., a doctor)
-    created_patients = relationship("Patient", back_populates="created_by_user", cascade="all, delete-orphan")
+
+    # Relationship for Patient Users to their details (one-to-one)
+    patient_details = relationship("PatientDetails", back_populates="user", uselist=False)
+
+    # Relationship for Patient Users to their scans (one-to-many)
+    scans = relationship("Scan", back_populates="patient_user") # Assuming Scan model has patient_user_id
+
+    # Relationship for Doctor Users to their associated Patient Users (many-to-many)
+    doctor_patients = relationship(
+        "User",
+        secondary=doctor_patient_association,
+        primaryjoin=id == doctor_patient_association.c.doctor_user_id,
+        secondaryjoin=id == doctor_patient_association.c.patient_user_id,
+        lazy="dynamic",
+        backref=backref(
+            "patient_doctors",
+            lazy="dynamic",
+        )
+    )
+
+    patient_doctors: Mapped[List["User"]]
+
+    connect_tokens = relationship(
+        "DoctorConnectToken",
+        back_populates="doctor",
+        cascade="all, delete-orphan"
+    )
 
     def update_security_stamp(self):
         """
         Updates the security stamp for the user.
         Should be called on security-sensitive changes (e.g., password change).
         """
-        self.security_stamp = uuid.uuid4().hex
+        self.security_stamp = generate_security_stamp()
+    
+    def set_role(self, role: UserRole):
+        """
+        Sets the user's role.
+        """
+        self.role = role
 
     def update_password(self, plain_password: str):
         """
@@ -66,6 +105,6 @@ class User(Base):
 
     def elevate(self):
         raise NotImplemented
-    
+
     def degrade(self):
         raise NotImplemented

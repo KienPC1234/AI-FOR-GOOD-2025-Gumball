@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Any, Optional, Union
+from uuid import uuid4
 
 from jose import jwt
 from passlib.context import CryptContext
@@ -91,3 +92,9 @@ def load_token(token: str):
         return schemas.TokenPayload(**payload)
     except (jwt.JWTError, ValidationError):
         return None
+    
+def generate_security_stamp() -> str:
+    """
+    Generate a new security stamp.
+    """
+    return uuid4().hex

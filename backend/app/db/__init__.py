@@ -1,27 +1,36 @@
-import functools
+import uuid
 from typing import Optional, Any, List
 
 from sqlalchemy.orm import Session
 
+import app.models as models
 from app.core.security import get_password_hash
 from app.db.base import Base
-from app.models import Patient, User
+from app.models import PatientDetails, User, Scan, DoctorConnectToken
 from app.utils import ranges
+from app.states import UserRole
 
 class DBWrapper:
     def __init__(self, session: Session):
         self.session = session
+
+        # Short-circuiting the session methods
         self.commit = session.commit
+        self.query = session.query
+        self.close = session.close
+        self.refresh = session.refresh
+        self.add = session.add
+        self.delete = session.delete # Add delete method
 
     # General save method
 
     def save_model(self, model: Base):
         """
-        Save a user to the database.
+        Save a model to the database.
         """
-        self.session.add(model)
+        self.add(model)
         self.commit()
-        self.session.refresh(model)
+        self.refresh(model)
 
     # User-related methods
 
@@ -29,19 +38,19 @@ class DBWrapper:
         """
         Fetch a user by ID.
         """
-        return self.session.query(User).filter(User.id == user_id).first()
+        return self.query(User).filter(User.id == user_id).first()
 
     def get_user_by_email(self, email: str) -> Optional[User]:
         """
         Fetch a user by email.
         """
-        return self.session.query(User).filter(User.email == email).first()
+        return self.query(User).filter(User.email == email).first()
 
     def get_all_users(self, skip: int = 0, limit: int = 100, filters: List[Any] = None) -> List[User]:
         """
         Fetch all users with optional filters, pagination.
         """
-        query = self.session.query(User)
+        query = self.query(User)
         if filters:
             query = query.filter(*filters)
         return query.offset(skip).limit(limit).all()
@@ -50,7 +59,7 @@ class DBWrapper:
         """
         Check if an email is already taken, excluding a specific user ID.
         """
-        query = self.session.query(User).filter(User.email == email)
+        query = self.query(User).filter(User.email == email)
         if exclude_user_id:
             query = query.filter(User.id != exclude_user_id)
         return query.first() is not None
@@ -75,98 +84,178 @@ class DBWrapper:
         user.soft_restore()
         self.save_user(user)
 
-    def close(self) -> None:
-        """
-        Close the database session.
-        """
-        self.session.close()
-
-    def users(self, skips: int = 0, limit: int = 100, filters: Any = ()):
+    def users(self, skip: int = 0, limit: int = 100, filters: Any = (), **kwargs) -> List[User]:
         """
         Query for users.
         """
-        return self._command_query_users(skips, limit, filters).all()
+        return self._command_query_users(skip, limit, filters, **kwargs).all()
 
-    def user(self, *filters: Any):
+    def user(self, *filters: Any, **kwargs) -> Optional[User]:
         """
         Query a user.
         """
-        return self._command_query_users(limit=1, filters=filters).first()
+        return self._command_query_users(limit=None, filters=filters, **kwargs).first()
 
-    def _command_query_users(self, skips: int = 0, limit: int = 100, filters: Any = ()):
-        query = self.sess.query(User)
+    def _command_query_users(self, skip: int = 0, limit: Optional[int] = 100, filters: Any = (), **kwargs):
+        query = self.query(User).offset(skip)
+        compiled_filters = []
+
         if filters:
-            query = query.filter(*filters)
-        return query.offset(skips).limit(limit)
+            compiled_filters.extend(filters)
+        
+        for col_name, value in kwargs.items():
+            compiled_filters.append(getattr(User, col_name) == value)
 
-    def find_users(
-        self,
-        id: Optional[int] = None,
-        email: Optional[str] = None,
-        password: Optional[str] = None,
-        is_active: Optional[bool] = None,
-        is_superuser: Optional[bool] = None,
-        created_time_range: ranges.TimeRange = ranges.AnyTime,
-        updated_time_range: ranges.TimeRange = ranges.AnyTime,
-        *,
-        skips: int = 0,
-        limit: int = 100,
-        raw: bool = False,
-    ):
-        """
-        Find users with given criteria.
-        """
-        filters = []
+        if limit:
+            query = query.limit(limit)
 
-        if id: filters.append(User.id == id)
-        if email: filters.append(User.email == email)
-        if is_active: filters.append(User.is_active == is_active)
-        if is_superuser: filters.append(User.is_superuser == is_superuser)
-
-        if password:
-            hashed_password = get_password_hash(password)
-            filters.append(User.hashed_password == hashed_password)
-
-        filters.extend(created_time_range.bake_query(User.created_at))
-        filters.extend(updated_time_range.bake_query(User.updated_at))
-
-        query_cmd = self._command_query_users(skips=skips, limit=limit, filters=filters)
-        return query_cmd if raw else (query_cmd.first() if limit == 1 else query_cmd.all())
+        return query.filter(*compiled_filters)
     
-
-    # Patient-related methods
-
-    def get_patient(self, patient_id: int) -> Optional[Patient]:
-        return self.session.query(Patient).filter(Patient.id == patient_id).first()
-
-    def get_patients_for_doctor(self, doctor_id: int, skip: int = 0, limit: int = 100) -> List[Patient]:
+    def list_users(self, skip: int = 0, limit: Optional[int] = None, **kwargs):
         """
-        Fetch all patients for a specific doctor.
+        Fetch users with optional filters and pagination. Ommit a rule if checking value is `None`
         """
+        query = self.query(User).offset(skip)
+
+        for col_name, value in kwargs.items():
+            query = query.filter(getattr(User, col_name) == value)
+
+        if limit:
+            query = query.limit(limit)
+
+        return query.all()
+
+
+    # PatientDetails-related methods
+
+    def get_patient_details(self, patient_details_id: int) -> Optional[PatientDetails]: # Renamed method
+        return self.query(PatientDetails).filter(PatientDetails.id == patient_details_id).first()
+
+    
+    def get_patients_from_doctor_id(self, doctor_user_id: int, skip: int = 0, limit: int = 100) -> List[User]:
+        """
+        Fetch all patient users associated with a specific doctor user.
+        """
+        
+        doctor_user = self.get_user(doctor_user_id)
+        if not doctor_user or doctor_user.role != UserRole.DOCTOR:
+            return []
+        
+        return self.get_patient_for_doctor(doctor_user, skip, limit)
+        
+    def get_patient_for_doctor(
+        self,
+        doctor: User,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[User]:
         return (
-            self.session.query(Patient)
-            .filter(Patient.doctor_id == doctor_id, Patient.is_active == True)
+            self.query(User)
+            .join(
+                models.doctor_patient_association,
+                User.id == models.doctor_patient_association.c.patient_user_id,
+            )
+            .filter(
+                models.doctor_patient_association.c.doctor_user_id == doctor.id,
+                User.role == UserRole.PATIENT,
+                User.is_active == True,
+            )
             .offset(skip)
             .limit(limit)
             .all()
         )
 
-    def get_doctor_for_patient(self, patient_id: int) -> Optional[User]:
+    def get_doctors_from_patient_id(
+        self, patient_user_id: int, skip: int = 0, limit: int = 100
+    ) -> List[User]:
         """
-        Fetch the doctor associated with a specific patient.
+        Fetch all patient users associated with a specific patient user.
         """
-        patient = self.session.query(Patient).filter(Patient.id == patient_id).first()
-        if patient:
-            return self.get_user(patient.doctor_id)
-        return None
+        
+        patient = self.get_user(patient_user_id)
+        if not patient or patient.role != UserRole.PATIENT:
+            return []
 
-    def add_patient(self, patient: Patient) -> None:
-        self.save_model(patient)
+        return self.get_doctors_for_patient(patient, skip, limit)
 
-    def update_patient(self, patient: Patient) -> None:
+    def get_doctors_for_patient(
+        self, patient: User, skip: int = 0, limit: int = 100
+    ) -> List[User]:
+        
+        return (
+            self.query(User)
+            .join(
+                models.doctor_patient_association,
+                User.id == models.doctor_patient_association.c.doctor_user_id,
+            )
+            .filter(
+                models.doctor_patient_association.c.patient_user_id == patient.id,
+                User.role == UserRole.DOCTOR,
+                User.is_active.is_(True),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        
+
+    def add_patient_details(self, patient_details: PatientDetails) -> None:
+        self.save_model(patient_details)
+
+    def update_patient_details(self, patient_details: PatientDetails) -> None:
         self.commit()
-        self.session.refresh(patient)
+        self.refresh(patient_details)
 
-    def delete_patient(self, patient: Patient) -> None:
-        patient.is_active = False
+    # Scan-related methods
+
+    def get_scan(self, scan_id: int) -> Optional[Scan]:
+        """
+        Fetch a scan by ID.
+        """
+        return self.query(Scan).filter(Scan.id == scan_id).first()
+
+    def get_scans_for_patient_user(self, patient_user_id: int, skip: int = 0, limit: int = 100) -> List[Scan]:
+        """
+        Fetch all scans for a specific patient user.
+        """
+        return (
+            self.query(Scan)
+            .filter(Scan.patient_user_id == patient_user_id)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    def add_scan(self, scan: Scan) -> None:
+        """
+        Add a new scan to the database.
+        """
+        self.save_model(scan)
+
+    def update_scan(self, scan: Scan) -> None:
+        """
+        Update an existing scan.
+        """
         self.commit()
+        self.refresh(scan)
+
+    def delete_scan(self, scan: Scan) -> None:
+        """
+        Delete a scan.
+        """
+        self.delete(scan)
+        self.commit()
+
+    # Token-related methods
+
+    def add_connect_token(self, token: DoctorConnectToken) -> None:
+        """
+        Add a new connection token to the database.
+        """
+        self.save_model(token)
+
+    def get_connect_token(self, token: str) -> DoctorConnectToken:
+        """
+        Fetch a connection token by its value.
+        """
+        return self.query(DoctorConnectToken).filter(DoctorConnectToken.token == token).first()

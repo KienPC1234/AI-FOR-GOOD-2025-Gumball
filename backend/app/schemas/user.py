@@ -5,19 +5,21 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
 
+from app.states import UserRole
+
 # Shared properties
 class UserBase(BaseModel):
     email: Optional[EmailStr] = None
     is_active: Optional[bool] = True
     is_superuser: bool = False
-    user_role: Optional[UserRole] = None
+    role: Optional[UserRole] = None
 
 
 # Properties to receive via API on creation
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
-    user_role: str
+    role: UserRole
 
     @field_validator('password')
     @classmethod

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.api import deps
 from app.db import DBWrapper
+from app.states import UserRole
 
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,9 @@ def read_users(
     db: DBWrapper = Depends(deps.get_db_wrapped),
     skip: int = 0,
     limit: int = 100,
-    email: str = None,
+    role: UserRole = None,
+    is_active: bool = None,
+    is_deleted: bool = None,
     current_user: models.User = Depends(deps.get_current_active_superuser),
 ) -> Any:
     """
@@ -30,10 +33,12 @@ def read_users(
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Insufficient privileges")
 
-    filters = (models.User.email == email,) if email else ()
-
-    logger.info(f"Superuser {current_user.email} accessed users with filters: {filters}")
-    return db.users(skip=skip, limit=limit, filters=filters)
+    return db.list_users(
+        skip=skip, limit=limit,
+        role=role,
+        is_active=is_active,
+        is_deleted=is_deleted,
+    )
 
 
 @router.get("/me", response_model=schemas.User)
@@ -121,13 +126,12 @@ def delete_user(
 def restore_user(
     user_id: int,
     current_user: models.User = Depends(deps.get_current_active_superuser),
-    db: Session = Depends(deps.get_db),
+    db: DBWrapper = Depends(deps.get_db_wrapped),
 ) -> Any:
     """
     Restore a soft-deleted user. Only for superusers.
     """
-    db_wrapper = DBWrapper(db)
-    user = db_wrapper.get_user(user_id)
+    user = db.get_user(user_id)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -138,5 +142,5 @@ def restore_user(
     if not user.is_deleted:
         raise HTTPException(status_code=400, detail="User is not deleted")
 
-    db_wrapper.restore_user(user)
+    db.restore_user(user)
     return {"message": "User restored successfully"}

@@ -1,4 +1,3 @@
-import uuid
 from datetime import timedelta, datetime
 from typing import Any
 
@@ -13,10 +12,9 @@ from app.api import deps
 from app.core import security
 from app.core.config import settings
 from app.core.email import send_registration_email
-from app.core.security import get_password_hash, verify_password
 from app.db import DBWrapper
-from app.states import UserRole
 from app.tasks import send_email_task
+
 
 class EmailPasswordForm:
     def __init__(
@@ -50,18 +48,16 @@ def login_access_token(
     # Authenticate with email only
     user = db.get_user_by_email(form_data.email)
 
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
 
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
 
-    access_token = security.create_access_token(user)
-    refresh_token = security.create_refresh_token(user)
 
     return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
+        "access_token": security.create_access_token(user),
+        "refresh_token": security.create_refresh_token(user),
         "token_type": "bearer",
     }
 
@@ -83,20 +79,13 @@ def register_user(
             status_code=400,
             detail="A user with this email already exists in the system.",
         )
-    
-    role = getattr(UserRole, user_in.user_role.upper(), None)
-    if not role:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid user role.",
-        )
 
     # Create new user
     user = models.User(
         email=user_in.email,
-        hashed_password=get_password_hash(user_in.password),
-        user_role=user_in.user_role,
-        security_stamp=uuid.uuid4().hex,
+        hashed_password=security.get_password_hash(user_in.password),
+        user_role=user_in.role,
+        security_stamp=security.generate_security_stamp(),
         is_active=True,
         is_superuser=False,
     )
@@ -137,7 +126,7 @@ def login_simple(
     # Authenticate with email only
     user = db.get_user_by_email(login_data.email)
 
-    if not user or not verify_password(login_data.password, user.hashed_password):
+    if not user or not security.verify_password(login_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
 
     if not user.is_active:
@@ -148,6 +137,7 @@ def login_simple(
         "refresh_token": security.create_refresh_token(user),
         "token_type": "bearer",
     }
+
 
 @router.post("/refresh-token", response_model=schemas.Token)
 def refresh_access_token(
@@ -172,10 +162,9 @@ def refresh_access_token(
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    access_token = security.create_access_token(current_user)
 
     return {
-        "access_token": access_token,
+        "access_token": security.create_access_token(current_user),
         "refresh_token": refresh_token,
         "token_type": "bearer",
     }
