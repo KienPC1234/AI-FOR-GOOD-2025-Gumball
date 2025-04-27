@@ -1,10 +1,12 @@
 import functools, importlib
 from typing import Callable
+import importlib, functools
+from typing import Callable
 
 
 def get_lazy_item(module_path: str, name: str):
     """
-    Lazily loads an item from a module.
+    Loads an item from a module.
     """
     return getattr(importlib.import_module(module_path), name)
 
@@ -41,9 +43,9 @@ def lazy_load_function(module_function_path: str):
     def wrapper(*args, **kwargs):
         nonlocal module_function
 
-        if module_function is None:
-            module_function = get_lazy_item(*module_function_path.rsplit('.', 1))
-
-        return module_function(*args, **kwargs)
+        if module_function:
+            return module_function(*args, **kwargs)        
+        
+        return (module_function := get_lazy_item(*module_function_path.rsplit('.', 1)))(*args, **kwargs)
     
     return wrapper
