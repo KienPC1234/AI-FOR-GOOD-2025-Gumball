@@ -1,5 +1,6 @@
 'use client';
 
+import { toast } from 'react-toastify';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../components/layout/Layout';
@@ -18,17 +19,18 @@ const UploadPage: React.FC = () => {
     notes: '',
   });
   const [isDragging, setIsDragging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const fileArray = Array.from(e.target.files);
       const validFiles = fileArray.filter(file => {
-          if (file.size > 50 * 1024 * 1024) { // 50 MB limit
-              alert(`${file.name} exceeds the size limit of 50MB.`);
+          if (file.size > 25 * 1024 * 1024) { // 25 MB limit
+              toast.error(`${file.name} exceeds the size limit of 25MB.`);
               return false;
           }
           if (!['image/jpeg', 'image/png', 'application/dicom'].includes(file.type)) {
-              alert(`${file.name} is not a valid file type.`);
+              toast.error(`${file.name} is not a valid file type.`);
               return false;
           }
           return true;
@@ -68,21 +70,28 @@ const UploadPage: React.FC = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would typically upload the files to your backend
-    console.log('Files to upload:', files);
-    console.log('Patient info:', patientInfo);
-    // Reset form after submission
-    setFiles([]);
-    setPatientInfo({
-      name: '',
-      age: '',
-      gender: '',
-      scanType: 'ct',
-      notes: '',
-    });
-    alert('Upload functionality would be implemented here');
+    setIsLoading(true);
+
+    try {
+      // Insert uploading logic here
+      // Simulate file upload
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      toast.success('Files uploaded successfully!');
+      setFiles([]);
+      setPatientInfo({
+        name: '',
+        age: '',
+        gender: '',
+        scanType: 'ct',
+        notes: '',
+      });
+    } catch (error) {
+      toast.error('Failed to upload files. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -269,13 +278,17 @@ const UploadPage: React.FC = () => {
             </div>
           </div>
           <div className="px-4 py-3 bg-gray-50 text-right sm:px-6">
-            <button
-              type="submit"
-              disabled={files.length === 0}
-              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Upload and Analyze
-            </button>
+          <button
+            type="submit"
+            disabled={files.length === 0 || isLoading}
+            className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+            ) : (
+              'Upload and Analyze'
+            )}
+          </button>
           </div>
         </form>
       </div>

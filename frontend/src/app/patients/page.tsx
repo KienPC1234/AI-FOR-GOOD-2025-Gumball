@@ -60,11 +60,21 @@ const PatientsPage: React.FC = () => {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('name');
   const [patients] = useState(mockPatients);
 
   const filteredPatients = patients.filter((patient) =>
     patient.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const sortedPatients = [...filteredPatients].sort((a, b) => {
+    if (sortBy === 'name') {
+      return a.name.localeCompare(b.name);
+    } else if (sortBy === 'age') {
+      return a.age - b.age;
+    }
+    return 0;
+  });
 
   return (
     <Layout>
@@ -122,11 +132,24 @@ const PatientsPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="mt-4">
+            <div className="relative rounded-md shadow-sm max-w-lg">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+              >
+                <option value="name">Sort by Name</option>
+                <option value="age">Sort by Age</option>
+              </select>
+            </div>
+          </div>
+
           <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-md">
         </>
         <ul className="divide-y divide-gray-200">
-          {filteredPatients.length > 0 ? (
-            filteredPatients.map((patient) => (
+          {sortedPatients.length > 0 ? (
+            sortedPatients.map((patient) => (
               <li key={patient.id}>
                 <Link href={`/patients/${patient.id}`} className="block hover:bg-gray-50">
                   <div className="px-4 py-4 sm:px-6">

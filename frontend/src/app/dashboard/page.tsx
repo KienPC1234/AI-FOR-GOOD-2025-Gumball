@@ -6,6 +6,7 @@ import Layout from '../components/layout/Layout';
 import { useAuth } from '../context/AuthContext';
 import { FiUpload, FiList, FiUser, FiActivity, FiLock } from 'react-icons/fi';
 import Link from 'next/link';
+import { Scan } from '../types/scan';
 
 const DashboardPage: React.FC = () => {
   const router = useRouter();
@@ -41,6 +42,8 @@ const DashboardPage: React.FC = () => {
       color: 'bg-orange-500',
     },
   ];
+
+  const recentScans: Scan[] = []; // Placeholder for recent scans data
 
   return (
     <Layout>
@@ -121,9 +124,26 @@ const DashboardPage: React.FC = () => {
             </p>
           </div>
           <div className="border-t border-gray-200">
-            <div className="px-4 py-5 sm:p-6 text-center text-gray-500">
-              No recent scans found. Upload a new scan to get started.
-            </div>
+            <ul className="divide-y divide-gray-200">
+              {recentScans.length > 0 ? (
+                recentScans.map((scan) => (
+                  <li key={scan.id} className="px-4 py-4 sm:px-6">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-blue-600 truncate">
+                        {scan.fileName}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(scan.uploadedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <li className="px-4 py-5 text-center text-gray-500">
+                  No recent scans found.
+                </li>
+              )}
+            </ul>
           </div>
         </div>
       </>

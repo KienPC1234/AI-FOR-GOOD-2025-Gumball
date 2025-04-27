@@ -1,3 +1,4 @@
+import logging
 from typing import Any, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -6,23 +7,38 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.api import deps
-from app.core.security import get_password_hash
+from app.db import DBWrapper
+from app.states import UserRole
+
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
 @router.get("/", response_model=List[schemas.User])
 def read_users(
-    db: Session = Depends(deps.get_db),
+    db: DBWrapper = Depends(deps.get_db_wrapped),
     skip: int = 0,
     limit: int = 100,
+    role: UserRole = None,
+    is_active: bool = None,
+    is_deleted: bool = None,
     current_user: models.User = Depends(deps.get_current_active_superuser),
 ) -> Any:
     """
-    Retrieve users. Only for superusers.
+    Retrieve users with optional filtering by email or username. Only for superusers.
     """
-    users = db.query(models.User).offset(skip).limit(limit).all()
-    return users
+
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Insufficient privileges")
+
+    return db.list_users(
+        skip=skip, limit=limit,
+        role=role,
+        is_active=is_active,
+        is_deleted=is_deleted,
+    )
 
 
 @router.get("/me", response_model=schemas.User)
@@ -38,58 +54,25 @@ def read_user_me(
 @router.put("/me", response_model=schemas.User)
 def update_user_me(
     *,
-    db: Session = Depends(deps.get_db),
+    db: DBWrapper = Depends(deps.get_db_wrapped),
     password: str = Body(None),
     email: str = Body(None),
-    username: str = Body(None),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
     Update own user.
     """
-    current_user_data = jsonable_encoder(current_user)
-    user_in = schemas.UserUpdate(**current_user_data)
-    
-    if password is not None:
-        user_in.password = password
-    if email is not None:
-        user_in.email = email
-    if username is not None:
-        user_in.username = username
-    
-    if user_in.password:
-        hashed_password = get_password_hash(user_in.password)
-        current_user.hashed_password = hashed_password
-    
-    if user_in.email:
-        # Check if email is already taken
-        user = db.query(models.User).filter(
-            models.User.email == user_in.email, 
-            models.User.id != current_user.id
-        ).first()
-        if user:
-            raise HTTPException(
-                status_code=400,
-                detail="Email already registered",
-            )
-        current_user.email = user_in.email
-    
-    if user_in.username:
-        # Check if username is already taken
-        user = db.query(models.User).filter(
-            models.User.username == user_in.username, 
-            models.User.id != current_user.id
-        ).first()
-        if user:
-            raise HTTPException(
-                status_code=400,
-                detail="Username already taken",
-            )
-        current_user.username = user_in.username
-    
-    db.add(current_user)
-    db.commit()
-    db.refresh(current_user)
+
+    if email:
+        if current_user.email != email and db.is_email_taken(email, exclude_user_id=current_user.id):
+            raise HTTPException(status_code=400, detail="Email already registered")
+        current_user.email = email
+
+    if password:
+        current_user.update_password(password)
+
+    db.save_user(current_user)
+    logger.info(f"User {current_user.email} updated their profile")
     return current_user
 
 
@@ -97,16 +80,67 @@ def update_user_me(
 def read_user_by_id(
     user_id: int,
     current_user: models.User = Depends(deps.get_current_active_user),
-    db: Session = Depends(deps.get_db),
+    db: DBWrapper = Depends(deps.get_db_wrapped),
 ) -> Any:
     """
     Get a specific user by id.
     """
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if user == current_user:
+    user = db.get_user(user_id)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Allow access if the user is the current user or a superuser
+    if user.id == current_user.id or current_user.is_superuser:
         return user
+
+    raise HTTPException(status_code=403, detail="Insufficient privileges")
+
+
+@router.delete("/{user_id}", response_model=dict)
+def delete_user(
+    user_id: int,
+    current_user: models.User = Depends(deps.get_current_active_superuser),
+    db: DBWrapper = Depends(deps.get_db_wrapped),
+) -> Any:
+    """
+    Soft delete a user by marking them as deleted. Only for superusers.
+    """
+    user = db.get_user(user_id)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
     if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=400, detail="The user doesn't have enough privileges"
-        )
-    return user
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    if user.is_superuser:
+        raise HTTPException(status_code=403, detail="Cannot delete a superuser")
+
+    db.soft_delete_user(user)
+    logger.info(f"Superuser {current_user.email} deleted user {user.email}")
+    return {"message": "User deleted successfully"}
+
+
+@router.post("/{user_id}/restore", response_model=dict)
+def restore_user(
+    user_id: int,
+    current_user: models.User = Depends(deps.get_current_active_superuser),
+    db: DBWrapper = Depends(deps.get_db_wrapped),
+) -> Any:
+    """
+    Restore a soft-deleted user. Only for superusers.
+    """
+    user = db.get_user(user_id)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    if not user.is_deleted:
+        raise HTTPException(status_code=400, detail="User is not deleted")
+
+    db.restore_user(user)
+    return {"message": "User restored successfully"}

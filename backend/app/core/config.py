@@ -1,20 +1,19 @@
 from typing import List, Union
 
 from pydantic import EmailStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict, NoDecode
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:8000", "http://localhost:3000"]
+    # General
+    BASE_STORAGE_PATH: str
+    BASE_USER_STORAGE_PATH: str
+    MAX_FILE_UPLOAD_SIZE: int
+    IMAGE_FILE_ALLOWED_EXTENSIONS: List[str]
 
-    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
-        elif isinstance(v, (list, str)):
-            return v
-        raise ValueError(v)
+    # Server information
+    PROJECT_NAME: str
+    BACKEND_CORS_ORIGINS: List[str]
 
     # Database
     DATABASE_URL: str
@@ -34,7 +33,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         case_sensitive=True,
-        env_file=".env.example"
+        env_file=".env"
     )
 
 
