@@ -1,0 +1,17 @@
+import enum
+
+class BodyPart(enum.Enum):
+    LEFT_CLAVICLE = 0
+    RIGHT_CLAVICLE = 1
+    LEFT_SCAPULA = 2
+    RIGHT_SCAPULA = 3
+    LEFT_LUNG = 4
+    RIGHT_LUNG = 5
+    LEFT_HILUS_PULMONIS = 6
+    RIGHT_HILUS_PULMONIS = 7
+    HEART = 8
+    AORTA = 9
+    FACIES_DIAPHRAGMATICA = 10
+    MEDIASTINUM = 11
+    WEASAND = 12
+    SPINE = 13

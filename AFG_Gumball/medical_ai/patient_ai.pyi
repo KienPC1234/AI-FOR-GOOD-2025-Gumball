@@ -1,0 +1,13 @@
+from typing import List, Tuple, Dict, Any, Optional
+import numpy as np
+
+class PatientAI:
+    def __init__(self) -> None: ...
+    def answer_question(self, question: str) -> str: ...
+    def diagnose_images(
+        self,
+        image_bytes_list: List[bytes],
+        symptoms: Optional[str] = ...,
+        include_symptoms: bool = ...,
+        include_xray_image: bool = ...
+    ) -> Tuple[str, List[Dict[str, Any]]]: ...
