@@ -1,10 +1,9 @@
-from typing import Generator, Optional
+from datetime import datetime
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt
+from jose import jwt, JWTError
 from pydantic import ValidationError
-from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.core.config import settings
@@ -34,7 +33,7 @@ def get_current_user(
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=settings.ALGORITHM
         )
-        token_data = schemas.TokenPayload(**payload)
+        token_data = schemas.AccessTokenPayload(**payload)
     except (jwt.JWTError, ValidationError):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -75,3 +74,27 @@ def get_current_active_superuser(
             status_code=400, detail="The user doesn't have enough privileges"
         )
     return current_user
+
+
+def revalidate_with_refresh_token(
+    refresh_token: str = Header(..., alias="refreshToken"),
+    current_user: models.User = Depends(get_current_active_user),
+) -> tuple[models.User, schemas.RefreshTokenPayload]:
+    """
+    Get refresh token data from headers.
+    """
+    try:
+        payload = jwt.decode(refresh_token, settings.REFRESH_SECRET_KEY, algorithms=[settings.ALGORITHM])
+        refresh_token_data = schemas.RefreshTokenPayload(**payload)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    
+    if current_user.id != refresh_token_data.sub or \
+        current_user.security_stamp != refresh_token_data.security_stamp:
+
+        raise HTTPException(status_code=401, detail="Invalid token for this user")
+    
+    if datetime.utcnow() > datetime.utcfromtimestamp(refresh_token_data.exp):
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    
+    return current_user, refresh_token_data

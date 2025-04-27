@@ -84,7 +84,7 @@ def register_user(
     user = models.User(
         email=user_in.email,
         hashed_password=security.get_password_hash(user_in.password),
-        user_role=user_in.role,
+        role=user_in.role,
         security_stamp=security.generate_security_stamp(),
         is_active=True,
         is_superuser=False,
@@ -141,28 +141,9 @@ def login_simple(
 
 @router.post("/refresh-token", response_model=schemas.Token)
 def refresh_access_token(
-    refresh_token: str = Header(..., alias="refreshToken"),  # Pass refresh token in the header
-    current_user: models.User = Depends(deps.get_current_active_user),
+    authed_pack: tuple[models.User, schemas.RefreshTokenPayload] = Depends(deps.revalidate_with_refresh_token),
 ) -> Any:
-    try:
-        payload = jwt.decode(refresh_token, settings.REFRESH_SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id = payload.get("sub")
-        user_security_stamp = payload.get("iss")
-
-        if user_id is None or user_security_stamp is None:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
-        
-        if current_user.id != int(user_id) or \
-            current_user.security_stamp != user_security_stamp:
-
-            raise HTTPException(status_code=401, detail="Invalid token for this user")
-
-        if datetime.utcnow() > datetime.utcfromtimestamp(payload.get("exp", 0)):
-            raise HTTPException(status_code=401, detail="Refresh token expired")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
-
-
+    current_user, refresh_token = authed_pack
     return {
         "access_token": security.create_access_token(current_user),
         "refresh_token": refresh_token,

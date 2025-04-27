@@ -11,12 +11,28 @@ class Token(BaseModel):
     token_type: str
 
 
-class TokenPayload(BaseModel):
+class AccessTokenPayload(BaseModel):
     # Token subject (user ID)
-    sub: Optional[str] = None
+    sub: str = None
 
     # The security stamp of the user
     iss: str
+
+    @property
+    def security_stamp(self):
+        """ Friendlier alias for `iss` field """
+        return self.iss
+    
+
+class RefreshTokenPayload(BaseModel):
+    # Token subject (user ID)
+    sub: str = None
+
+    # The security stamp of the user
+    iss: str
+
+    # The expiration time of the token
+    exp: datetime = None
 
     @property
     def security_stamp(self):
@@ -27,13 +43,11 @@ class TokenPayload(BaseModel):
 class DoctorConnectTokenBase(BaseModel):
     token: str
     expires_at: datetime
-    password: Optional[str] = None
     is_used: bool = False
 
 
 class DoctorConnectTokenCreate(BaseModel):
     expires_in_minutes: int = 60  # Default expiration time
-    password: Optional[str] = None
 
 
 class DoctorConnectToken(DoctorConnectTokenBase):

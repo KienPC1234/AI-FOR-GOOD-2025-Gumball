@@ -6,7 +6,7 @@ from sqlalchemy.sql import func
 
 from app.db.base_class import Base
 from app.states import UserRole, IntEnumType
-from app.utils.lazy import lazy_load_function
+from backend.app.utils.lazy import lazy_load_function
 
 
 get_password_hash = lazy_load_function("app.core.security.get_password_hash")
@@ -23,8 +23,8 @@ doctor_patient_association = Table(
 
 
 class User(Base):
-    __tablename__ = 'users'
-    
+    __tablename__: str = "users"
+
     id: Mapped[int] = Column(Integer, primary_key=True, index=True)
     email: Mapped[str] = Column(String, unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = Column(String, nullable=False)

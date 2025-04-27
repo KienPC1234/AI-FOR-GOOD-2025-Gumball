@@ -1,4 +1,3 @@
-import uuid
 from typing import Optional, Any, List
 
 from sqlalchemy.orm import Session
@@ -6,6 +5,7 @@ from sqlalchemy.orm import Session
 import app.models as models
 from app.models import PatientDetails, User, Scan, DoctorConnectToken
 from app.states import UserRole
+
 
 class DBWrapper:
     def __init__(self, session: Session):
@@ -21,7 +21,7 @@ class DBWrapper:
 
     # General save method
 
-    def save_model(self, model: Base):
+    def save_model(self, model: 'Base'):
         """
         Save a model to the database.
         """

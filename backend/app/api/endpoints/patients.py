@@ -56,14 +56,14 @@ def add_patient_user(
         raise HTTPException(status_code=400, detail="User with this email already exists")
 
     # Create the new patient user
-    # Ensure the user_role is set to PATIENT
+    # Ensure the role is set to PATIENT
     if patient_user_in.role.lower() != UserRole.PATIENT.name.lower():
          raise HTTPException(status_code=400, detail="New user must have 'patient' role")
 
     patient_user = models.User(
         email=patient_user_in.email,
         hashed_password=get_password_hash(patient_user_in.password),
-        user_role=UserRole.PATIENT,
+        role=UserRole.PATIENT,
         security_stamp=generate_security_stamp(),
     )
 
@@ -246,7 +246,6 @@ def create_connect_token(
     connect_token = models.DoctorConnectToken(
         token=token,
         expires_at=expires_at,
-        password=token_data.password,
         doctor_id=current_user.id,
     )
 

@@ -89,7 +89,7 @@ def load_token(token: str):
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=settings.ALGORITHM
         )
-        return schemas.TokenPayload(**payload)
+        return schemas.AccessTokenPayload(**payload)
     except (jwt.JWTError, ValidationError):
         return None
     
