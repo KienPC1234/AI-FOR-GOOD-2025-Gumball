@@ -10,13 +10,20 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str
 
+class AccessToken(BaseModel):
+    access_token: str
+    token_type: str
+    
 
 class AccessTokenPayload(BaseModel):
     # Token subject (user ID)
-    sub: str = None
+    sub: int
 
     # The security stamp of the user
     iss: str
+
+    # The expiration time of the token
+    exp: datetime
 
     @property
     def security_stamp(self):
@@ -26,13 +33,13 @@ class AccessTokenPayload(BaseModel):
 
 class RefreshTokenPayload(BaseModel):
     # Token subject (user ID)
-    sub: str = None
+    sub: int
 
     # The security stamp of the user
     iss: str
 
     # The expiration time of the token
-    exp: datetime = None
+    exp: datetime
 
     @property
     def security_stamp(self):

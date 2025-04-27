@@ -20,7 +20,6 @@ def test_register_user(client: TestClient, db: Session):
             "role": UserRole.PATIENT
         },
     )
-    print(response.json())
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == TEST_EMAIL
@@ -102,7 +101,6 @@ def test_test_token(client: TestClient, db: Session):
     assert response.status_code == 200
     data = response.json()
     token = data["access_token"]
-    refresh_token = data["refresh_token"]
 
     # Test refresh faked token
     response = client.post(
@@ -132,6 +130,6 @@ def test_test_token(client: TestClient, db: Session):
             "refreshToken": compose_refresh_token("invaliduser", "abc", timedelta(1))
         }
     )
-    assert response.status_code == 401
+    assert response.status_code == 422
 
     cleanup_temporary_user(db, user)

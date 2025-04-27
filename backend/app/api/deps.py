@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -34,7 +34,7 @@ def get_current_user(
             token, settings.SECRET_KEY, algorithms=settings.ALGORITHM
         )
         token_data = schemas.AccessTokenPayload(**payload)
-    except (jwt.JWTError, ValidationError):
+    except (JWTError, ValidationError):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
@@ -46,6 +46,9 @@ def get_current_user(
     
     if user.security_stamp != token_data.security_stamp:
         raise HTTPException(status_code=403, detail="Invalid token")
+    
+    if datetime.now(timezone.utc) > token_data.exp:
+        raise HTTPException(status_code=401, detail="Access token expired")
 
     return user
 
@@ -94,7 +97,7 @@ def revalidate_with_refresh_token(
 
         raise HTTPException(status_code=401, detail="Invalid token for this user")
     
-    if datetime.utcnow() > datetime.utcfromtimestamp(refresh_token_data.exp):
+    if datetime.now(timezone.utc) > refresh_token_data.exp:
         raise HTTPException(status_code=401, detail="Refresh token expired")
     
     return current_user, refresh_token_data

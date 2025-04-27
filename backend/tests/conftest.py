@@ -4,13 +4,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.base import Base
+from app.core.config import settings
+from app.db.base import Base, User
 from app.db.session import get_db
 from app.main import app
+from .config import TEST_EMAIL
 
 
 # Use in-memory SQLite for tests
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
@@ -27,6 +29,13 @@ def db():
     
     # Create a new session for each test
     db = TestingSessionLocal()
+
+    # Remove test user if it exists
+    user = db.query(User).filter(User.email == TEST_EMAIL).first()
+    if user:
+        db.delete(user)
+        db.commit()
+
     try:
         yield db
     finally:

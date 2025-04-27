@@ -1,5 +1,5 @@
 from app.schemas.token import \
-    Token, AccessTokenPayload, RefreshTokenPayload, \
+    Token, AccessToken, AccessTokenPayload, RefreshTokenPayload, \
     DoctorConnectToken, DoctorConnectTokenBase, DoctorConnectTokenCreate  # noqa
 from app.schemas.user import User, UserCreate, UserInDB, UserUpdate  # noqa
 from app.schemas.patient import PatientDetails, PatientDetailsCreate, PatientDetailsUpdate  # noqa

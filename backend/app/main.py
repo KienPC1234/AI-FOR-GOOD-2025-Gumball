@@ -4,6 +4,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from pydantic_core import ValidationError as PydanticValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.api import api_router
@@ -35,7 +36,17 @@ async def validation_exception_handler(request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={
         "detail": "Validation error",
         "messages": [
-            {"loc": error["loc"], "msg": error["msg"], "type": error["type"]}
+            {"msg": error["msg"], "type": error["type"]}
+            for error in exc.errors()
+        ]
+    })
+
+@app.exception_handler(PydanticValidationError)
+async def pydantic_validation_exception_handler(request, exc: PydanticValidationError):
+    return JSONResponse(status_code=422, content={
+        "detail": "Validation error",
+        "messages": [
+            {"msg": error["msg"], "type": error["type"]}
             for error in exc.errors()
         ]
     })

@@ -6,7 +6,7 @@ from sqlalchemy.sql import func
 
 from app.db.base_class import Base
 from app.states import UserRole, IntEnumType
-from backend.app.utils.lazy import lazy_load_function
+from app.utils.lazy import lazy_load_function
 
 
 get_password_hash = lazy_load_function("app.core.security.get_password_hash")
