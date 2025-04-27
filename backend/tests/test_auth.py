@@ -5,38 +5,38 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.core.security import get_password_hash, compose_refresh_token
+from app.states import UserRole
 
+TEST_EMAIL = "test@example.com"
+TEST_PASSWORD = "test&Password1"
 
 def test_register_user(client: TestClient, db: Session):
     # Test user registration
     response = client.post(
         "/api/auth/register",
         json={
-            "email": "test@example.com",
-            "username": "testuser",
-            "password": "testpassword",
+            "email": TEST_EMAIL,
+            "password": TEST_PASSWORD,
+            "role": UserRole.PATIENT
         },
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["email"] == "test@example.com"
-    assert data["username"] == "testuser"
+    assert data["email"] == TEST_EMAIL
     assert "id" in data
     
     # Check that the user was created in the database
-    user = db.query(models.User).filter(models.User.email == "test@example.com").first()
+    user = db.query(models.User).filter(models.User.email == TEST_EMAIL).first()
     assert user is not None
-    assert user.username == "testuser"
     assert user.is_active is True
     assert user.is_superuser is False
 
 
 def test_login_user(client: TestClient, db: Session):
     # Create a user in the database
-    hashed_password = get_password_hash("testpassword")
+    hashed_password = get_password_hash(TEST_PASSWORD)
     user = models.User(
-        email="test@example.com",
-        username="testuser",
+        email=TEST_EMAIL,
         hashed_password=hashed_password,
         is_active=True,
     )
@@ -46,7 +46,7 @@ def test_login_user(client: TestClient, db: Session):
     # Test login with username
     response = client.post(
         "/api/auth/login",
-        data={"username": "testuser", "password": "testpassword"},
+        data={"email": TEST_EMAIL, "password": TEST_PASSWORD},
     )
     assert response.status_code == 200
     data = response.json()
@@ -56,7 +56,7 @@ def test_login_user(client: TestClient, db: Session):
     # Test login with email
     response = client.post(
         "/api/auth/login",
-        data={"username": "test@example.com", "password": "testpassword"},
+        data={"email": TEST_EMAIL, "password": TEST_PASSWORD},
     )
     assert response.status_code == 200
     data = response.json()
@@ -66,17 +66,16 @@ def test_login_user(client: TestClient, db: Session):
     # Test login with wrong password
     response = client.post(
         "/api/auth/login",
-        data={"username": "testuser", "password": "wrongpassword"},
+        data={"email": TEST_EMAIL, "password": "wrongpassword"},
     )
     assert response.status_code == 400
 
 
 def test_test_token(client: TestClient, db: Session):
     # Create a user in the database
-    hashed_password = get_password_hash("testpassword")
+    hashed_password = get_password_hash(TEST_PASSWORD)
     user = models.User(
-        email="test@example.com",
-        username="testuser",
+        email=TEST_EMAIL,
         hashed_password=hashed_password,
         is_active=True,
     )
@@ -86,7 +85,7 @@ def test_test_token(client: TestClient, db: Session):
     # Login to get a token
     response = client.post(
         "/api/auth/login",
-        data={"username": "testuser", "password": "testpassword"},
+        data={"email": TEST_EMAIL, "password": TEST_PASSWORD},
     )
     data = response.json()
     token = data["access_token"]
@@ -99,8 +98,7 @@ def test_test_token(client: TestClient, db: Session):
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["email"] == "test@example.com"
-    assert data["username"] == "testuser"
+    assert data["email"] == TEST_EMAIL
 
     # Test token refreshing
     response = client.post(

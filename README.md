@@ -1,14 +1,35 @@
-# React + Vite
+# GumMed AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+GumMed AI is a fully designed web application, targeting patients or doctors who wants their medical scans analyzed and reported remotely. In addition, it also involves an LLM to provide guidance and support both distanced patients and hospital doctors gaining more insight into the disease as well as curing them.
 
-Currently, two official plugins are available:
+## Installation
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+The repository includes two main parts. The `front-end` powered by node.js and Python fastapi server serves as the `backend`.
 
-## Expanding the ESLint configuration
+We have tested on Node.js version `18.x` (lower than `12.x` doesn't work), and Python `3.12`
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. Setting up front-end
 
-To run frontend/backend temporary, access frontend folder and run 'npm run dev' and access backend folder and run 'python run_with_db.py'
+```bash
+# CD to the frontend folder
+cd ./frontend
+# Install required packages
+npm install
+# Run the server locally
+npm run dev -- --hostname localhost
+```
+
+2. Setting up back-end
+
+```bash
+# CD to the backend folder
+cd ./backend
+# Install required packages
+pip install -r requirements.txt
+# Edit .env with your configuration
+cp .env.example .env
+# Run the server
+python run_with_db.py
+```
+
+There is also `Celery` inside the package, but currently it isn't needed.

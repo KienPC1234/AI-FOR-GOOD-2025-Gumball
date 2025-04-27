@@ -4,10 +4,7 @@ from typing import Optional, Any, List
 from sqlalchemy.orm import Session
 
 import app.models as models
-from app.core.security import get_password_hash
-from app.db.base import Base
 from app.models import PatientDetails, User, Scan, DoctorConnectToken
-from app.utils import ranges
 from app.states import UserRole
 
 class DBWrapper:

@@ -1,13 +1,17 @@
-import uuid
-from typing import List
+from typing import List, Callable
 
 from sqlalchemy import Boolean, Column, Integer, String, DateTime, ForeignKey, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 from sqlalchemy.sql import func
 
-from app.core.security import get_password_hash, generate_security_stamp
 from app.db.base_class import Base
 from app.states import UserRole, IntEnumType
+from app.utils.lazy_bound import lazy_load_function
+
+
+get_password_hash = lazy_load_function("app.core.security.get_password_hash")
+generate_security_stamp = lazy_load_function("app.core.security.generate_security_stamp")
+
 
 # Association table for Doctor-Patient User relationship
 doctor_patient_association = Table(
@@ -19,6 +23,8 @@ doctor_patient_association = Table(
 
 
 class User(Base):
+    __tablename__ = 'users'
+    
     id: Mapped[int] = Column(Integer, primary_key=True, index=True)
     email: Mapped[str] = Column(String, unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = Column(String, nullable=False)
@@ -48,8 +54,6 @@ class User(Base):
             lazy="dynamic",
         )
     )
-
-    patient_doctors: Mapped[List["User"]]
 
     connect_tokens = relationship(
         "DoctorConnectToken",

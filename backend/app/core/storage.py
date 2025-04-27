@@ -3,12 +3,12 @@ import hashlib
 import inspect
 import os
 import shutil
-from _typeshed import ReadableBuffer
 from abc import ABC, abstractmethod
-from config import settings
 from io import BufferedIOBase
 from pathlib import Path
 from typing import Optional, Callable, Generator
+
+from app.core.config import settings
 
 
 class StorageBase(ABC):
@@ -42,7 +42,7 @@ class StorageBase(ABC):
 
 class Storage(StorageBase):
     def __init__(self, base_subdir: Optional[Path] = None):
-        self._base_dir = Path(settings.BASE_STORAGE_PATH)
+        self._base_dir = Path(settings.BASE_STORAGE_PATH).absolute()
         if base_subdir:
             self._base_dir = self._map_path(base_subdir)
         
@@ -73,7 +73,7 @@ class Storage(StorageBase):
             return function
 
         @functools.wraps(function)
-        def wrapper(self: Storage, *args, **kwargs):
+        def wrapper(self: 'Storage', *args, **kwargs):
             bound_args = signature.bind(self, *args, **kwargs)
             bound_args.apply_defaults()
             
@@ -119,7 +119,7 @@ class Storage(StorageBase):
     def exists(self, path: os.PathLike) -> bool:
         return self._map_path(path).exists()
 
-    @_path_supplied()
+    @_path_supplied
     def list_dir(self, path: Optional[Path] = None, files_only: bool = False, folders_only: bool = False) -> Generator[Path, None, None]:
         path = path or self.base_dir
         if files_only:
