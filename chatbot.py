@@ -1,7 +1,7 @@
 import os
 import io
 from PIL import Image
-from AFG_Gumball.utils.AI_Chatbot import PatientAI, DoctorDiagnosticAI, DoctorEnhanceAI
+from AFG_Gumball.utils.AI_Chatbot import PatientAI, DoctorDiagnosticAI, DoctorEnhanceAI, XrayAnalysisExpertAI
 
 def test_system():
     print("=== Bắt đầu kiểm tra hệ thống chẩn đoán y tế ===")
@@ -86,6 +86,9 @@ def test_system():
         # 3.2. Test kiểm tra chẩn đoán
         validation = doctor_enhance_ai.validate_diagnosis(medical_record, symptoms, pathologies_list)
         print(f"Kiểm tra chẩn đoán: {validation}")
+        # 4. KieiKiTra Xray Nang Cao
+        chuyengia = XrayAnalysisExpertAI()
+        print(str(chuyengia.analyze_xray(image_bytes_list,symptoms)))
 
         print("\n=== Kiểm tra hoàn tất ===")
 

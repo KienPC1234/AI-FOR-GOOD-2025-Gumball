@@ -6,6 +6,9 @@ import torchxrayvision as xrv
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import enum
+from PIL import Image
+import io
 
 def process_xray_image(img_path):
     """
@@ -135,3 +138,85 @@ def process_xray_image(img_path):
         print(f"Lỗi khi xử lý ảnh: {str(e)}")
         return [], []
 
+
+class BodyPart(enum.Enum):
+    LEFT_CLAVICLE = 0
+    RIGHT_CLAVICLE = 1
+    LEFT_SCAPULA = 2
+    RIGHT_SCAPULA = 3
+    LEFT_LUNG = 4
+    RIGHT_LUNG = 5
+    LEFT_HILUS_PULMONIS = 6
+    RIGHT_HILUS_PULMONIS = 7
+    HEART = 8
+    AORTA = 9
+    FACIES_DIAPHRAGMATICA = 10
+    MEDIASTINUM = 11
+    WEASAND = 12
+    SPINE = 13
+
+def get_body_part_segment(image, part: BodyPart):
+    """
+    Trả về vùng phân đoạn của một bộ phận cơ thể cụ thể từ ảnh X-ray.
+
+    Args:
+        image: Ảnh X-ray đã được tiền xử lý. (Tensor, shape [1, H, W] hoặc [C, H, W])
+        part: Bộ phận cơ thể cần lấy vùng phân đoạn (BodyPart enum).
+
+    Returns:
+        Tensor vùng phân đoạn của bộ phận được chỉ định, shape [512, 512].
+    """
+    _, h, w = image.shape
+    if h != w:
+        diff = abs(h - w)
+        if h > w:
+            left = diff // 2
+            right = diff - left
+            padding = (left, right, 0, 0) 
+        else:
+            top = diff // 2
+            bottom = diff - top
+            padding = (0, 0, top, bottom)
+        
+        image = F.pad(image, padding, mode='constant', value=0)  
+
+    seg_model = xrv.baseline_models.chestx_det.PSPNet()
+    
+    output = seg_model(image.unsqueeze(0))  
+    
+    assert output.shape == (1, 14, 512, 512), f"Output shape không khớp: {output.shape}"
+    
+    part_index = part.value
+    segment = output[0, part_index, :, :]
+    
+    return segment
+
+def load_xray_image(image_input):
+    """
+    Tải và tiền xử lý ảnh X-ray từ đường dẫn file hoặc image byte.
+    
+    Args:
+        image_input: Đường dẫn file ảnh (str) hoặc dữ liệu ảnh dạng bytes.
+    
+    Returns:
+        Tensor ảnh X-ray đã tiền xử lý, shape [1, 512, 512].
+    """
+    if isinstance(image_input, str):
+        try:
+            image = Image.open(image_input).convert("L") 
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Không tìm thấy file {image_input}!")
+    elif isinstance(image_input, bytes):
+        image = Image.open(io.BytesIO(image_input)).convert("L")  
+    else:
+        raise ValueError("image_input phải là đường dẫn file (str) hoặc bytes!")
+    
+    image = image.resize((512, 512), Image.Resampling.LANCZOS)
+    
+    image_np = np.array(image)
+    
+    image_np = (image_np / 255.0) * 2048 - 1024 
+    
+    image_tensor = torch.from_numpy(image_np).float().unsqueeze(0) 
+
+    return image_tensor

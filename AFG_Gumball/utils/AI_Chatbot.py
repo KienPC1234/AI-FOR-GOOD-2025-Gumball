@@ -293,8 +293,8 @@ class XrayAnalysisExpertAI:
 
     def analyze_xray(self, image_bytes_list, symptoms):
         """
-        Phân tích ảnh X-quang gốc và triệu chứng mà không dùng process_xray_image.
-        Trả về chẩn đoán và danh sách các khu vực có khả năng bệnh lý với mô tả.
+        Phân tích ảnh X-quang gốc và triệu chứng.
+        Trả về chẩn đoán và danh sách khu vực có khả năng bệnh lý.
         """
         # Kiểm tra đầu vào
         if not image_bytes_list or len(image_bytes_list) > self.max_images:
@@ -311,63 +311,71 @@ class XrayAnalysisExpertAI:
             except Exception as e:
                 raise RuntimeError(f"Lỗi khi xử lý ảnh: {str(e)}")
 
-        # Tạo prompt với Few-shot prompting và Chain-of-Thought
-        prompt = """
-        Bạn là một chuyên gia phân tích ảnh X-quang, hỗ trợ bác sĩ và bệnh nhân. Dựa trên ảnh X-quang gốc và triệu chứng, thực hiện các bước sau:
-        1. Phân tích ảnh X-quang để xác định các khu vực bất thường (mô tả vị trí, đặc điểm như mờ, đường kẻ, vùng sáng/tối, v.v.).
-        2. Kết hợp triệu chứng để đưa ra chẩn đoán sơ bộ.
-        3. Đánh dấu các khu vực có khả năng bệnh lý (mô tả vị trí và loại bệnh lý nghi ngờ).
-        4. Cung cấp lời khuyên cho bệnh nhân, sử dụng ngôn ngữ dễ hiểu, trấn an.
-        5. Trả về kết quả dạng JSON với các trường:
-           - diagnosis: Chuẩn đoán sơ bộ (chuỗi).
-           - abnormal_areas: Danh sách các khu vực bất thường, mỗi khu vực có:
-             - location: Vị trí (ví dụ: "phổi trái, vùng dưới", "phổi phải, vùng trên").
-             - description: Mô tả đặc điểm bất thường (ví dụ: "vùng mờ", "đường Kerley B").
-             - suspected_pathology: Bệnh lý nghi ngờ (ví dụ: "viêm phổi", "tràn dịch màng phổi").
-           - advice: Lời khuyên cho bệnh nhân (chuỗi).
+        # Tạo prompt
+        prompt = f"""
+Bạn là một chuyên gia phân tích ảnh X-quang, hỗ trợ bác sĩ và bệnh nhân. Dựa trên ảnh X-quang gốc và triệu chứng, thực hiện các bước sau:
+1. Phân tích ảnh X-quang để xác định các khu vực bất thường (mô tả vị trí, đặc điểm như mờ, đường kẻ, vùng sáng/tối, v.v.).
+2. Kết hợp triệu chứng để đưa ra chẩn đoán sơ bộ.
+3. Đánh dấu các khu vực có khả năng bệnh lý (mô tả vị trí và loại bệnh lý nghi ngờ).
+4. Cung cấp lời khuyên cho bệnh nhân, sử dụng ngôn ngữ dễ hiểu, trấn an.
+5. Trả về kết quả dạng JSON với các trường:
+   - diagnosis: Chuẩn đoán sơ bộ (chuỗi).
+   - abnormal_areas: Danh sách các khu vực bất thường, mỗi khu vực có:
+     - location: Vị trí (ví dụ: "phổi trái, vùng dưới", "phổi phải, vùng trên").
+     - description: Mô tả đặc điểm bất thường (ví dụ: "vùng mờ", "đường Kerley B").
+     - suspected_pathology: Bệnh lý nghi ngờ (ví dụ: "viêm phổi", "tràn dịch màng phổi").
+   - advice: Lời khuyên cho bệnh nhân (chuỗi).
 
-        Ví dụ:
-        Triệu chứng: Ho kéo dài, khó thở.
-        Ảnh X-quang: [Ảnh được gửi kèm].
-        Trả lời:
-        {
-          "diagnosis": "Nghi ngờ viêm phổi hoặc tràn dịch màng phổi.",
-          "abnormal_areas": [
-            {
-              "location": "phổi phải, vùng dưới",
-              "description": "vùng mờ lan tỏa",
-              "suspected_pathology": "viêm phổi"
-            },
-            {
-              "location": "phổi trái, vùng ngoại vi",
-              "description": "đường Kerley B",
-              "suspected_pathology": "tràn dịch màng phổi"
-            }
-          ],
-          "advice": "Bạn nên đi khám bác sĩ ngay để được xét nghiệm thêm. Nghỉ ngơi, uống nhiều nước và tránh khói bụi."
-        }
+Ví dụ:
+Triệu chứng: Ho kéo dài, khó thở.
+Ảnh X-quang: [Ảnh được gửi kèm].
+Trả lời:
+{{
+  "diagnosis": "Nghi ngờ viêm phổi hoặc tràn dịch màng phổi.",
+  "abnormal_areas": [
+    {{
+      "location": "phổi phải, vùng dưới",
+      "description": "vùng mờ lan tỏa",
+      "suspected_pathology": "viêm phổi"
+    }},
+    {{
+      "location": "phổi trái, vùng ngoại vi",
+      "description": "đường Kerley B",
+      "suspected_pathology": "tràn dịch màng phổi"
+    }}
+  ],
+  "advice": "Bạn nên đi khám bác sĩ ngay để được xét nghiệm thêm. Nghỉ ngơi, uống nhiều nước và tránh khói bụi."
+}}
 
-        Triệu chứng: {symptoms}
-        Trả lời (trả về JSON):
-        """
-        prompt = prompt.format(symptoms=symptoms)
+Triệu chứng: {symptoms}
+Trả lời (chỉ trả về JSON):
+"""
 
-        # Tạo danh sách nội dung
         contents = []
         for i, img_bytes in enumerate(image_bytes_list):
             contents.append(types.Part.from_bytes(
                 data=img_bytes,
                 mime_type='image/jpeg'
             ))
-            contents.append(f"Phân tích ảnh X-quang {i+1}.")
+            contents.append(f"Phân tích ảnh X-quang {i + 1}.")
         contents.append(prompt)
 
-        # Gọi API
         result = self.gemini.generate_content(contents)
 
-        # Chuyển đổi kết quả thành JSON
         try:
-            result_json = json.loads(result)
+            start = result.find('{')
+            end = result.rfind('}') + 1
+            if start == -1 or end == -1:
+                raise RuntimeError("Không tìm thấy JSON trong kết quả trả về")
+
+            clean_json_text = result[start:end]
+            result_json = json.loads(clean_json_text)
+
+            if not all(key in result_json for key in ["diagnosis", "abnormal_areas", "advice"]):
+                raise RuntimeError("JSON trả về thiếu trường bắt buộc")
+
             return result_json
-        except json.JSONDecodeError:
-            raise RuntimeError("Kết quả trả về từ Gemini API không phải JSON hợp lệ")
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Kết quả trả về từ Gemini API không phải JSON hợp lệ: {str(e)}")
+        except Exception as e:
+            raise RuntimeError(f"Lỗi khi xử lý kết quả trả về: {str(e)}")
