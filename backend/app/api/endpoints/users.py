@@ -3,11 +3,11 @@ from typing import Any, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models, schemas
 from app.api import deps
-from app.db import DBWrapper
+from app.utils.db_wrapper import AsyncDBWrapper
 from app.states import UserRole
 
 
@@ -17,8 +17,8 @@ router = APIRouter()
 
 
 @router.get("/", response_model=List[schemas.User])
-def read_users(
-    db: DBWrapper = Depends(deps.get_db_wrapped),
+async def read_users(
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
     skip: int = 0,
     limit: int = 100,
     role: UserRole = None,
@@ -33,7 +33,7 @@ def read_users(
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Insufficient privileges")
 
-    return db.list_users(
+    return await db.list_users(
         skip=skip, limit=limit,
         role=role,
         is_active=is_active,
@@ -52,9 +52,9 @@ def read_user_me(
 
 
 @router.put("/me", response_model=schemas.User)
-def update_user_me(
+async def update_user_me(
     *,
-    db: DBWrapper = Depends(deps.get_db_wrapped),
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
     password: str = Body(None),
     email: str = Body(None),
     current_user: models.User = Depends(deps.get_current_active_user),
@@ -64,28 +64,28 @@ def update_user_me(
     """
 
     if email:
-        if current_user.email != email and db.is_email_taken(email, exclude_user_id=current_user.id):
+        if current_user.email != email and await db.is_email_taken(email, exclude_user_id=current_user.id):
             raise HTTPException(status_code=400, detail="Email already registered")
         current_user.email = email
 
     if password:
         current_user.update_password(password)
 
-    db.save_user(current_user)
+    await db.save_user(current_user)
     logger.info(f"User {current_user.email} updated their profile")
     return current_user
 
 
 @router.get("/{user_id}", response_model=schemas.User)
-def read_user_by_id(
+async def read_user_by_id(
     user_id: int,
     current_user: models.User = Depends(deps.get_current_active_user),
-    db: DBWrapper = Depends(deps.get_db_wrapped),
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
 ) -> Any:
     """
     Get a specific user by id.
     """
-    user = db.get_user(user_id)
+    user = await db.get_user(user_id)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -98,15 +98,15 @@ def read_user_by_id(
 
 
 @router.delete("/{user_id}", response_model=dict)
-def delete_user(
+async def delete_user(
     user_id: int,
     current_user: models.User = Depends(deps.get_current_active_superuser),
-    db: DBWrapper = Depends(deps.get_db_wrapped),
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
 ) -> Any:
     """
     Soft delete a user by marking them as deleted. Only for superusers.
     """
-    user = db.get_user(user_id)
+    user = await db.get_user(user_id)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -117,21 +117,21 @@ def delete_user(
     if user.is_superuser:
         raise HTTPException(status_code=403, detail="Cannot delete a superuser")
 
-    db.soft_delete_user(user)
+    await db.soft_delete_user(user)
     logger.info(f"Superuser {current_user.email} deleted user {user.email}")
     return {"message": "User deleted successfully"}
 
 
 @router.post("/{user_id}/restore", response_model=dict)
-def restore_user(
+async def restore_user(
     user_id: int,
     current_user: models.User = Depends(deps.get_current_active_superuser),
-    db: DBWrapper = Depends(deps.get_db_wrapped),
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
 ) -> Any:
     """
     Restore a soft-deleted user. Only for superusers.
     """
-    user = db.get_user(user_id)
+    user = await db.get_user(user_id)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -142,5 +142,5 @@ def restore_user(
     if not user.is_deleted:
         raise HTTPException(status_code=400, detail="User is not deleted")
 
-    db.restore_user(user)
+    await db.restore_user(user)
     return {"message": "User restored successfully"}

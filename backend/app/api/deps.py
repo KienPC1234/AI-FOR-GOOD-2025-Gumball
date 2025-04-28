@@ -1,30 +1,28 @@
 from datetime import datetime, timezone
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from pydantic import ValidationError
 
 from app import models, schemas
 from app.core.config import settings
-from app.db import DBWrapper
+from app.utils.db_wrapper import AsyncDBWrapper
 from app.db.session import get_db, SessionLocal
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=True)
 
-def get_db_wrapped():
+def get_db_wrapped(
+    request: Request
+):
     """
     Get a wrapped database session.
     """
 
-    db = DBWrapper(SessionLocal())
-    try:
-        yield db
-    finally:
-        db.close()
+    yield request.state.db
 
-def get_current_user(
-    db: DBWrapper = Depends(get_db_wrapped), token: str = Depends(oauth2_scheme)
+async def get_current_user(
+    db: AsyncDBWrapper = Depends(get_db_wrapped), token: str = Depends(oauth2_scheme)
 ) -> models.User:
     """
     Validate access token and return current user.
@@ -40,7 +38,7 @@ def get_current_user(
             detail="Could not validate credentials",
         )
     
-    user = db.get_user(token_data.sub)
+    user = await db.get_user(token_data.sub)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
