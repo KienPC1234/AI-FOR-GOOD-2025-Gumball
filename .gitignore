@@ -1,22 +1,37 @@
-# Ignore virtual environments
+# Python virtual environments
 .venv/
 .conda/
 
-# Ignore Python cache
+# Python cache files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Ignore environment files
+# Environment files
 .env
+env.example
 
-# Ignore other system files
+# Package build artifacts
+dist/
+build/
+*.egg-info/
+
+# Log and database files
 *.log
 *.sqlite3
 
-# VSCode settings (nếu bạn dùng VSCode)
+# VSCode settings
 .vscode/
 
 # Windows system files
 Thumbs.db
-pspnet_chestxray_best_model_4.pth
+Desktop.ini
+
+# Model and temporary files
+*.tmp
+*.bak
+
+# Other common ignores
+*.swp
+*.swo
+.DS_Store

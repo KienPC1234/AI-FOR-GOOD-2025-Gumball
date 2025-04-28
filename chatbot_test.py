@@ -108,12 +108,12 @@ def test_system(image_path: str = "xray.jpg") -> None:
         print("DoctorEnhanceAI khởi tạo thành công")
 
         # 3.1. Test cải thiện bệnh án
-        improved_record = doctor_enhance_ai.improve_medical_record(medical_record)
+        improved_record = doctor_enhance_ai.enhance_medical_record(medical_record)
         print(f"Bệnh án cải thiện: {improved_record}")
 
         # 3.2. Test kiểm tra chẩn đoán
         if pathologies_list:  # Chỉ kiểm tra nếu pathologies_list không rỗng
-            validation = doctor_enhance_ai.validate_diagnosis(medical_record, symptoms, pathologies_list)
+            validation = doctor_enhance_ai.validate_diagnosis(symptoms, pathologies_list,medical_record)
             print(f"Kiểm tra chẩn đoán: {validation}")
         else:
             print("Bỏ qua kiểm tra chẩn đoán: Không có dữ liệu bệnh lý")
