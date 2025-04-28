@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.api import deps
-from app.db import DBWrapper
+from app.utils.db_wrapper import AsyncDBWrapper
 from app.states import UserRole
 
 logger = logging.getLogger(__name__)
@@ -16,10 +16,10 @@ router = APIRouter()
 
 
 @router.post("/", response_model=schemas.Scan)
-def create_scan(
+async def create_scan(
     scan_in: schemas.ScanCreate,
     current_user: models.User = Depends(deps.get_current_active_user),
-    db: DBWrapper = Depends(deps.get_db_wrapped),
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
 ) -> models.Scan:
     """
     Create a new scan for the current patient user.
@@ -36,7 +36,7 @@ def create_scan(
         patient_user_id=current_user.id, # Link scan to the patient user
     )
 
-    db.add_scan(scan)
+    await db.add_scan(scan)
 
     logger.info(f"Patient user {current_user.email} created a new scan (ID: {scan.id})")
 
@@ -44,15 +44,15 @@ def create_scan(
 
 
 @router.get("/{scan_id}", response_model=schemas.Scan)
-def get_scan(
+async def get_scan(
     scan_id: int,
     current_user: models.User = Depends(deps.get_current_active_user),
-    db: DBWrapper = Depends(deps.get_db_wrapped),
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
 ) -> models.Scan:
     """
     Retrieve a specific scan by ID.
     """
-    scan = db.get_scan(scan_id)
+    scan = await db.get_scan(scan_id)
 
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
@@ -60,7 +60,7 @@ def get_scan(
     # Ensure the current user is either the patient who owns the scan or a doctor associated with that patient
     if current_user.id != scan.patient_user_id:
         # Check if current user is a doctor associated with the patient
-        patient_user = db.get_user(scan.patient_user_id)
+        patient_user = await db.get_user(scan.patient_user_id)
         if not patient_user or current_user not in patient_user.patient_doctors:
              raise HTTPException(status_code=403, detail="You do not have access to this scan")
 
@@ -68,12 +68,12 @@ def get_scan(
 
 
 @router.get("/patient/{patient_user_id}", response_model=List[schemas.Scan])
-def get_scans_for_patient(
+async def get_scans_for_patient(
     patient_user_id: int,
     skip: int = 0,
     limit: int = 100,
     current_user: models.User = Depends(deps.get_current_active_user),
-    db: DBWrapper = Depends(deps.get_db_wrapped),
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
 ) -> List[models.Scan]:
     """
     Retrieve all scans for a specific patient user.
@@ -81,11 +81,11 @@ def get_scans_for_patient(
     # Ensure the current user is either the patient or a doctor associated with that patient
     if current_user.id != patient_user_id:
         # Check if current user is a doctor associated with the patient
-        patient_user = db.get_user(patient_user_id)
+        patient_user = await db.get_user(patient_user_id)
         if not patient_user or current_user not in patient_user.patient_doctors:
              raise HTTPException(status_code=403, detail="You do not have access to these scans")
 
-    return db.get_scans_for_patient_user(patient_user_id, skip=skip, limit=limit)
+    return await db.get_scans_for_patient_user(patient_user_id, skip=skip, limit=limit)
 
 # Add endpoints for updating and deleting scans if needed
 # @router.put("/{scan_id}", response_model=schemas.Scan)

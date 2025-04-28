@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from passlib.context import CryptContext
 from typing import Any, Optional, Union
 from uuid import uuid4
 
@@ -10,7 +11,9 @@ from app import schemas
 from app.core.config import settings
 from app.models import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
 
 def create_refresh_token(
     user: User, expires_delta: Optional[timedelta] = None
@@ -28,9 +31,9 @@ def compose_refresh_token(
     Create a JWT refresh token.
     """
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(
+        expire = datetime.now(timezone.utc) + timedelta(
             minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES
         )
     to_encode = {"exp": expire, "iss": security_stamp, "sub": str(subject)}
@@ -53,9 +56,9 @@ def compose_access_token(
     Create a JWT access token.
     """
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(
+        expire = datetime.now(timezone.utc) + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
     to_encode = {"exp": expire, "iss": security_stamp, "sub": str(subject)}
