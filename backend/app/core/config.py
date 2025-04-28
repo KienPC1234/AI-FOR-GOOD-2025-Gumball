@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str
+    DATABASE_URL_ASYNC: str
 
     # Security
     SECRET_KEY: str

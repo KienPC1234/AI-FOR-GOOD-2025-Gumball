@@ -3,8 +3,8 @@ from typing import Any
 
 from jose import jwt, JWTError
 from fastapi import APIRouter, Depends, HTTPException, Form, Header, BackgroundTasks
-from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -12,7 +12,7 @@ from app.api import deps
 from app.core import security
 from app.core.config import settings
 from app.core.email import send_registration_email
-from app.db import DBWrapper
+from app.utils.db_wrapper import AsyncDBWrapper
 from app.tasks import send_email_task
 
 
@@ -38,15 +38,15 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=schemas.Token)
-def login_access_token(
-    db: DBWrapper = Depends(deps.get_db_wrapped), form_data: EmailPasswordForm = Depends()
+async def login_access_token(
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped), form_data: EmailPasswordForm = Depends()
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
     Use your email and password to login.
     """
     # Authenticate with email only
-    user = db.get_user_by_email(form_data.email)
+    user = await db.get_user_by_email(form_data.email)
 
     if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
@@ -63,9 +63,9 @@ def login_access_token(
 
 
 @router.post("/register", response_model=schemas.User)
-def register_user(
+async def register_user(
     *,
-    db: DBWrapper = Depends(deps.get_db_wrapped),
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
     user_in: schemas.UserCreate,
     background_tasks: BackgroundTasks,
 ) -> Any:
@@ -74,7 +74,7 @@ def register_user(
     """
     # Check if user with this email already exists
     
-    if db.is_email_taken(user_in.email):
+    if await db.is_email_taken(user_in.email):
         raise HTTPException(
             status_code=400,
             detail="A user with this email already exists in the system.",
@@ -90,7 +90,7 @@ def register_user(
         is_superuser=False,
     )
 
-    db.save_user(user)
+    await db.save_user(user)
 
     # Send registration email
     try:
@@ -115,16 +115,16 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login-simple", response_model=schemas.Token)
-def login_simple(
+async def login_simple(
     *,
-    db: DBWrapper = Depends(deps.get_db_wrapped),
+    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
     login_data: LoginRequest,
 ) -> Any:
     """
     Simple login endpoint that doesn't use OAuth2 form.
     """
     # Authenticate with email only
-    user = db.get_user_by_email(login_data.email)
+    user = await db.get_user_by_email(login_data.email)
 
     if not user or not security.verify_password(login_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")

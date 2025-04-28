@@ -1,20 +1,38 @@
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic_core import ValidationError as PydanticValidationError
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy import create_engine
 
 from app.api.api import api_router
 from app.core.config import settings
+from app.db.base import Base
+from app.models.user import User
+import app.middlewares as middlewares
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize the database connection
+    engine = create_engine("sqlite:///./app.db", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=engine)
+
+    yield
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url="/api/openapi.json",
     docs_url=None,
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 
@@ -52,16 +70,7 @@ async def pydantic_validation_exception_handler(request, exc: PydanticValidation
     })
 
 
-# Set all CORS enabled origins
-if settings.BACKEND_CORS_ORIGINS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
+middlewares.apply_middlewares(app)
 # Include API router
 app.include_router(api_router, prefix="/api")
 

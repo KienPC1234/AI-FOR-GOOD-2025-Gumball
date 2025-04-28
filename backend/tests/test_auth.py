@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models
 from app.core.security import compose_refresh_token
@@ -10,7 +10,7 @@ from .config import *
 from .utils import create_temporary_user, cleanup_temporary_user
 
 
-def test_register_user(client: TestClient, db: Session):
+def test_register_user(client: TestClient, db: AsyncSession):
     # Test user registration
     response = client.post(
         "/api/auth/register",
@@ -34,7 +34,7 @@ def test_register_user(client: TestClient, db: Session):
     cleanup_temporary_user(db, user)
 
 
-def test_login_user(client: TestClient, db: Session):
+def test_login_user(client: TestClient, db: AsyncSession):
     # Create a user in the database
     user = create_temporary_user(db)
     
@@ -68,7 +68,7 @@ def test_login_user(client: TestClient, db: Session):
     cleanup_temporary_user(db, user)
 
 
-def test_test_token(client: TestClient, db: Session):
+def test_test_token(client: TestClient, db: AsyncSession):
     # Create a user in the database
     user = create_temporary_user(db)
     
