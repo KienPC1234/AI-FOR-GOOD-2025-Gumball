@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict, NoDecode
 
 class Settings(BaseSettings):
     # General
+    GEMINI_API_KEY: str
     BASE_STORAGE_PATH: str
     BASE_USER_STORAGE_PATH: str
     MAX_FILE_UPLOAD_SIZE: int
