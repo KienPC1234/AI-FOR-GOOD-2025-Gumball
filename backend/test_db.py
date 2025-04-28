@@ -1,8 +1,10 @@
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 
+from app.core.config import settings
+
 # Create engine
-engine = create_engine("sqlite:///app.db", connect_args={"check_same_thread": False})
+engine = create_engine(settings.DATABASE_URL_ASYNC, connect_args={"check_same_thread": False})
 
 # Create session
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
