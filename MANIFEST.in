@@ -1,0 +1,5 @@
+include *.pyi
+include *.md
+include LICENSE
+include *.env
+recursive-include AFG_Gumball *.pyi

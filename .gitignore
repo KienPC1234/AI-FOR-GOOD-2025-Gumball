@@ -42,3 +42,41 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python virtual environments
+.venv/
+.conda/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files
+.env
+env.example
+
+# Package build artifacts
+dist/
+build/
+*.egg-info/
+
+# Log and database files
+*.log
+*.sqlite3
+
+# VSCode settings
+.vscode/
+
+# Windows system files
+Thumbs.db
+Desktop.ini
+
+# Model and temporary files
+*.tmp
+*.bak
+
+# Other common ignores
+*.swp
+*.swo
+.DS_Store
