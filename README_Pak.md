@@ -88,7 +88,7 @@ image_tensor = load_xray_image("path/to/xray.jpg")
 # Process images to detect pathologies
 pathologies, gradcam_images = process_xray_image("path/to/xray.jpg")
 for pathology, prob in pathologies:
-print(f"Pathology: {pathology}, Probability: {prob:.2f}")
+  print(f"Pathology: {pathology}, Probability: {prob:.2f}")
 
 # Heart segmentation
 heart_segment = get_body_part_segment(image_tensor, BodyPart.HEART)
@@ -121,20 +121,20 @@ image_path = "path/to/xray.jpg"
 # Patient-friendly diagnosis
 patient_ai = PatientAI()
 with open(image_path, "rb") as f:
-image_bytes = f.read()
-diagnosis, heatmaps = patient_ai.diagnose_images(
-image_bytes_list=[image_bytes],
-symptoms="Prolonged cough",
-include_symptoms=True,
-include_xray_image=True
-)
-print(f"Diagnosis: {diagnosis}")
+  image_bytes = f.read()
+  diagnosis, heatmaps = patient_ai.diagnose_images(
+    image_bytes_list=[image_bytes],
+    symptoms="Prolonged cough",
+    include_symptoms=True,
+    include_xray_image=True
+  )
+  print(f"Diagnosis: {diagnosis}")
 
 # In-depth analysis
 expert_ai = XrayAnalysisExpertAI()
 result = expert_ai.analyze_xray(
-image_paths=[image_path],
-symptoms="Prolonged cough"
+  image_paths=[image_path],
+  symptoms="Prolonged cough"
 )
 print(f"Analysis result: {result}")
 ```
@@ -145,7 +145,7 @@ print(f"Analysis result: {result}")
 - For `PatientAI.diagnose_images`:
 ```python
 with open("path/to/xray.jpg", "rb") as f:
-image_bytes = f.read()
+  image_bytes = f.read()
 ```
 The `image_bytes` data is passed in as a list (`[image_bytes]`).
 - For `DoctorDiagnosticAI.create_medical_record` and `XrayAnalysisExpertAI.analyze_xray`:
@@ -164,11 +164,11 @@ file_uri = response.uri
 ```python
 contents = [
 {
-"role": "user",
-"parts": [
-{"file_data": {"file_uri": file_uri, "mime_type": "image/jpeg"}},
-{"text": "X-ray image analysis."}
-]
+  "role": "user",
+  "parts": [
+    {"file_data": {"file_uri": file_uri, "mime_type": "image/jpeg"}},
+    {"text": "X-ray image analysis."}
+  ]
 }
 ]
 model = genai.GenerativeModel("gemini-2.0-flash")
@@ -190,10 +190,10 @@ pathologies, gradcam_images = process_xray_image("path/to/xray.jpg")
 # Create medical record
 doctor_ai = DoctorDiagnosticAI()
 record = doctor_ai.create_medical_record(
-patient_info="Male, 50 years old",
-symptoms="Prolonged cough, shortness of breath",
-image_paths=["path/to/xray.jpg"],
-include_xray_image=True
+  patient_info="Male, 50 years old",
+  symptoms="Prolonged cough, shortness of breath",
+  image_paths=["path/to/xray.jpg"],
+  include_xray_image=True
 )
 print(f"Medical record: {record}")
 ```
