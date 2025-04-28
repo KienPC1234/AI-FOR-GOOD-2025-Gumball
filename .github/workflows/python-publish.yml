@@ -13,10 +13,23 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        name: Checkout the repo
+        with:
+          ref: ${{ github.ref }} # Đảm bảo checkout đúng branch/release hiện tại
+
+      - name: Clear git cache and reset
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          git pull origin ${{ github.ref }} # Lấy mã nguồn mới nhất từ remote
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
+      - name: Clear pip cache
+        run: |
+          rm -rf ~/.cache/pip
 
       - name: Install build dependencies
         run: |
