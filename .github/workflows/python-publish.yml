@@ -5,8 +5,7 @@ on:
     types: [published]
 
 permissions:
-  contents: read
-  id-token: write  # Required for Trusted Publishing
+  contents: read  # Không cần id-token nếu dùng password
 
 jobs:
   release-build:
@@ -39,8 +38,7 @@ jobs:
     needs:
       - release-build
     environment:
-      name: pypi
-      url: https://pypi.org/project/AFG_Gumball
+      name: pypi  # Tùy bạn, có thể giữ hoặc bỏ environment nếu muốn
 
     steps:
       - name: Retrieve release distributions
@@ -52,4 +50,5 @@ jobs:
       - name: Publish release distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
           packages-dir: dist/
