@@ -1,9 +1,14 @@
 from setuptools import setup, find_packages
 
+with open("README_Pak.md", "r", encoding="utf-16") as fh:
+    long_description = fh.read()
+
 setup(
     name="AFG_Gumball",
     version="0.1.0",
     description="A Python package for processing medical X-ray images and AI-based diagnosis",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     author="KienTF",
     author_email="kienpc872009@gmail.com",
     url="https://github.com/KienPC1234/AI-FOR-GOOD-2025-Gumball", 
