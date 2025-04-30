@@ -11,7 +11,7 @@ from app.utils.db_wrapper import AsyncDBWrapper
 router = APIRouter()
 
 
-@router.get("/status/")
+@router.post("/status/")
 async def get_task_status(
     task_data: schemas.TaskTokenPayload = Depends(deps.get_user_task)
 ):
@@ -35,9 +35,36 @@ async def get_task_status(
             }
         else:
             return {
-                "detail": "Task not found"
+                "error": "Task not found"
             }
     except Exception:
         return {
-            "detail": "Task not found"
+            "error": "Task not found"
+        }
+    
+
+@router.post("/cancel/")
+async def cancel_task(
+    task_data: schemas.TaskTokenPayload = Depends(deps.get_user_task)
+):
+    """
+    API endpoint to fetch the status of a Celery task.
+    """
+
+    try:
+        result = AsyncResult(task_data.task_id, app=celery_app)
+
+        if not result.ready():
+            result.revoke(terminate=True, signal='SIGKILL')
+            return {
+                "status": "cancelled",
+                "error": None
+            }
+        else:
+            return {
+                "error": "Cannot cancel task"
+            }
+    except Exception:
+        return {
+            "error": "Cannot cancel task"
         }

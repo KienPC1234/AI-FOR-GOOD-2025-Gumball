@@ -77,6 +77,7 @@ class Storage(StorageBase):
     `base_dir`: current directory
     """
 
+    __slots__ = '_root_dir', '_cd'
 
     def __init__(self, base_subdir: Optional[Path] = None):
         self._root_dir = Path(settings.BASE_STORAGE_PATH).absolute()
@@ -159,6 +160,18 @@ class Storage(StorageBase):
             yield
         finally:
             self._cd = old_cd
+
+    @_path_supplied
+    @contextmanager
+    def open(path: Path, mode: str):
+        if not path.exists() or path.is_dir():
+            raise DiskOperationError("Invalid file path")
+        
+        try:
+            fp = open(path, mode)
+            yield fp
+        finally:
+            fp.close()
         
     
     def absolute_of(self, path: os.PathLike):
@@ -180,7 +193,8 @@ class Storage(StorageBase):
             *,
             random_bytes_generator: Callable[[int], bytes] = os.urandom,
             bytes_length: int = 15,
-            ext: Optional[str] = None
+            ext: Optional[str] = "",
+            absolute: bool = False
         ) -> Path:
         """
         Generate a random available file name in the directory.
@@ -189,7 +203,7 @@ class Storage(StorageBase):
         random_provider = lambda: "".join(hex(x)[2:].rjust(2, '0') for x in random_bytes_generator(bytes_length))
         while self.exists(fname := random_provider()):
             pass
-        return self._map_path(fname) + ext if ext else self._map_path(fname)
+        return self._map_path(fname + ext) if absolute else Path(fname + ext)
     
 
 class Mounted(Storage):
@@ -204,9 +218,14 @@ class Mounted(Storage):
 
 
 class UserStorage(Storage):
-    RAW_IMG_DIR = Path("raw_imgs")
-    JPEG_IMG_DIR = Path("jpeg_imgs")
-    ANALYSIS_DIR = Path("analysis")
+    UPLOADED_IMG_DIR = Path("uploaded_images") # For uploaded xray images, but is not analyzed
+    ANALYZED_IMG_DIR = Path("analyzed_images") # Analyzed xray images moves here
+    ANALYSIS_DIR = Path("analysis") # Analysis from AI saved here
+    HEATMAP_DIR = Path("heatmap") # Heatmaps are saved in a separate directory
+    DIAGNOSIS_DIR = Path("diagnosis") # Diagnosis from AI saved here
+
+
+    __slots__ = 'UPLOADED_IMG_DIR', 'ANALYZED_IMG_DIR', 'ANALYSIS_DIR', 'HEATMAP_DIR', 'DIAGNOSIS_DIR'
 
 
     def __init__(self):
@@ -215,14 +234,17 @@ class UserStorage(Storage):
     def user_dir(self, user_id: int) -> Mounted:
         return Mounted(self.base_dir / f"user_{user_id}")
     
-    def user_raw_img_dir(self, user_id: int):
-        return Mounted(self.base_dir / f"user_{user_id}" / self.RAW_IMG_DIR)
+    def user_uploaded_img_dir(self, user_id: int):
+        return Mounted(self.base_dir / f"user_{user_id}" / self.UPLOADED_IMG_DIR)
     
-    def user_jpeg_img_dir(self, user_id: int):
-        return Mounted(self.base_dir / f"user_{user_id}" / self.JPEG_IMG_DIR)
+    def user_analyzed_img_dir(self, user_id: int):
+        return Mounted(self.base_dir / f"user_{user_id}" / self.ANALYZED_IMG_DIR)
     
     def user_analysis_dir(self, user_id: int):
         return Mounted(self.base_dir / f"user_{user_id}" / self.ANALYSIS_DIR)
+    
+    def user_heatmap_dir(self, user_id: int):
+        return Mounted(self.base_dir / f"user_{user_id}" / self.HEATMAP_DIR)
     
     def list_user_dir(self, user_id: int, *, as_tuple: bool = False):
         iterable = self.list_dir(self.user_dir(user_id))

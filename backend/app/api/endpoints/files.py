@@ -35,7 +35,7 @@ def add_image(
         if file_ext not in settings.IMAGE_FILE_ALLOWED_EXTENSIONS:
             raise HTTPException(status_code=400, detail="Image file extension not allowed")
 
-        user_folder = user_storage.user_raw_img_dir(current_user.id)
+        user_folder = user_storage.user_uploaded_img_dir(current_user.id)
         file_name = user_folder.avail_file_name(ext=file_ext)
         user_folder.save_file(file.file, file_name)
 
@@ -58,7 +58,7 @@ def get_image(
     Retrieve processed images.
     """
     try:
-        user_folder = user_storage.user_jpeg_img_dir(current_user.id)
+        user_folder = user_storage.user_analyzed_img_dir(current_user.id)
         if not user_folder.exists(file_name):
             raise HTTPException(status_code=404, detail="File not found")
 

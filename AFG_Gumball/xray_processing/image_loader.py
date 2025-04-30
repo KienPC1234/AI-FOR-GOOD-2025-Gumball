@@ -37,16 +37,20 @@ def load_xray_image(image_input):
 
     return image_tensor
 
-def process_xray_image(img_path):
+def process_xray_image(
+        img_path: str,
+        threshold: float = 0.5
+    ):
     """
     Xử lý ảnh X-quang để phân loại bệnh lý và tạo heatmap Grad-CAM.
     
     Args:
         img_path (str): Đường dẫn tới ảnh X-quang.
+        threshold (float): Xác suất tối thiểu
         
     Returns:
         tuple:
-            - pathologies_above_0_5 (list): Danh sách tuple (tên_bệnh_lý, xác_suất) cho các bệnh lý có xác suất > 0.5.
+            - pathologies_above_threshold (list): Danh sách tuple (tên_bệnh_lý, xác_suất) cho các bệnh lý có xác suất > threshold.
             - gradcam_images (list): Danh sách dictionary chứa thông tin bệnh lý và ảnh heatmap.
     """
     try:
@@ -80,13 +84,13 @@ def process_xray_image(img_path):
 
         with torch.no_grad():
             preds = model(img_tensor).cpu()
-            output = {k: float(v) for k, v in zip(model.pathologies, preds[0])}
+            output = zip(model.pathologies, map(float, preds[0]))
 
-        pathologies_above_0_5 = [(k, v) for k, v in output.items() if v > 0.5]
+        pathologies_above_threshold = [(k, v) for k, v in output if v > threshold]
 
         from .gradcam import compute_gradcam
         gradcam_images = []
-        for pathology, prob in pathologies_above_0_5:
+        for pathology, prob in pathologies_above_threshold:
             target_class_idx = model.pathologies.index(pathology)
             heatmap = compute_gradcam(model, img_tensor, target_class_idx)
             gradcam_images.append({
@@ -95,7 +99,7 @@ def process_xray_image(img_path):
                 "heatmap": heatmap
             })
 
-        return pathologies_above_0_5, gradcam_images
+        return pathologies_above_threshold, gradcam_images
 
     except Exception as e:
         print(f"Lỗi khi xử lý ảnh: {str(e)}")

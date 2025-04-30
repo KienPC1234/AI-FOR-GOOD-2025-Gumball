@@ -1,14 +1,15 @@
-import os
+import os, json
 from os import PathLike
 from pathlib import Path
 from typing import Callable, Any, Optional, List, Tuple
-from PIL import Image
 
 from celery import shared_task
+from PIL import Image
 
 from app.core.email import send_email
 from app.core.storage import user_storage, Mounted
-from app.utils import change_ext
+from app.models import User
+from app.utils import change_ext, save_analyzation_output, load_analyzation_output
 from app.states import ImageProcessingError, AITaskException
 from ...AFG_Gumball.xray_processing import process_xray_image
 from ...AFG_Gumball.medical_ai import XrayAnalysisExpertAI, PatientAI, DoctorDiagnosticAI, DoctorEnhanceAI
@@ -36,69 +37,83 @@ def send_email_task(email_to: str, subject: str, html_content: str) -> None:
     
 
 @shared_task
-def convert_to_jpeg_task(user_id: int, file_name: str) -> str:
+def convert_to_jpeg_task(user: User, img_name: str) -> str:
     """
     Converts an image to JPEG format.
     """
-    file_mount = user_storage.user_dir(user_id)
+    file_mount = user_storage.user_uploaded_img_dir(user.id)
 
     try:
-        with file_mount.cd(user_storage.RAW_IMG_DIR):
-            img = Image.open(file_mount.read_file(file_name))
+        img = Image.open(file_mount.read_file(img_name))
         
-        with file_mount.cd(user_storage.JPEG_IMG_DIR):
-            jpeg_path = change_ext(file_name, ".jpeg")
-            img.convert("L").save(jpeg_path, "JPEG")
+        jpeg_path = change_ext(img_name, ".jpeg")
+        img.convert("L").save(jpeg_path, "JPEG")
         
         return jpeg_path
     except Exception as e:
         raise ImageProcessingError("Error converting image to JPEG") from e
     finally:
-        file_mount.delete_file(user_storage.RAW_IMG_DIR / file_name)
+        file_mount.delete_file(img_name)
     
 
 @shared_task
-def analyze_xray_task(img_path: str):
+def analyze_xray_task(user: User, img_name: str):
     """
-    Analyzes a grayscale X-ray image for pathologies.
+    Analyzes a grayscale X-ray image for pathologies then save details into a file.
     """
     try:
+        img_path = user_storage.user_analyzed_img_dir(user.id).absolute_of(img_name)
+        
         pathologies, gradcam_images = process_xray_image(img_path)
-        return {
-            "pathologies": pathologies,
-            "gradcam_images": gradcam_images,
-        }
+        save_path = user_storage.user_analysis_dir(user.id).avail_file_name(ext=".h5", absolute=True)
+
+        # Will separate heatmap soon to optimize performance
+        save_analyzation_output(save_path, pathologies, gradcam_images)
+        return save_path.name
     except Exception as e:
+        img_path.unlink()
         raise ImageProcessingError("Error analyzing X-ray image") from e
 
 
 @shared_task
-def expert_ai_xray_analysis_task(analysis_result: dict, symptoms: str):
+def expert_ai_xray_analysis_task(user: User, image_names: list[PathLike], symptoms: str):
     """
     Uses AI to provide suggestions based on X-ray analysis and symptoms.
     """
     try:
+        user_dir = user_storage.user_dir(user.id)
+
         ai_expert = XrayAnalysisExpertAI()
         suggestions = ai_expert.analyze_xray(
-            image_paths=[gradcam["heatmap"] for gradcam in analysis_result["gradcam_images"]],
+            image_paths=tuple(map(user_dir.absolute_of, image_names)),
             symptoms=symptoms,
         )
-        return suggestions
+
+        save_path = user_storage.user_analysis_dir(user.id).avail_file_name(ext=".json", absolute=True)
+        with save_path.open("w") as fp:
+            json.dump(suggestions, fp)
+
+        return save_path.name
     except Exception as e:
         raise AITaskException("Error providing AI help") from e
     
 
 @shared_task
-def friendly_ai_xray_analysis_task(user_id: int, xray_image: Optional[PathLike] = None, symptoms: Optional[str] = None):
+def friendly_ai_xray_analysis_task(
+    user_id: int, 
+    analysis_name: str, 
+    symptoms: Optional[str] = None
+):
     """
     Uses AI to provide suggestions based on X-ray analysis and symptoms.
     """
     try:
         patient_ai = PatientAI()
-        xray_image = user_storage.user_dir(user_id).absolute_of(xray_image).read_bytes()
+        analysis_path = user_storage.user_analysis_dir(user_id).absolute_of(analysis_name)
+        analysis = load_analyzation_output(analysis_path)
 
         suggestions = patient_ai.diagnose_images(
-            image_paths=[xray_image],
+            processed_xrays=(analysis,),
             symptoms=symptoms,
             include_xray_image=False, # We don't want to comsume to much computational power :))
         )

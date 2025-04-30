@@ -1,8 +1,10 @@
 from .gemini_client import GeminiAI
 from PIL import Image
+from numpy import ndarray
 import io
 import json
 import os
+from typing import Optional, Collection
 import google.generativeai as genai
 
 
@@ -11,7 +13,10 @@ class XrayAnalysisExpertAI:
         self.gemini = GeminiAI()
         self.max_images = 5
 
-    def analyze_xray(self, image_paths: list[str], symptoms: str) -> dict:
+    def analyze_xray(self,
+            symptoms: str,
+            image_paths: Optional[Collection[str]] = None,
+        ) -> dict:
         """
         Phân tích ảnh X-quang gốc và triệu chứng.
         Trả về chẩn đoán và danh sách khu vực có khả năng bệnh lý.
@@ -27,19 +32,19 @@ class XrayAnalysisExpertAI:
             ValueError: Nếu đầu vào không hợp lệ.
             RuntimeError: Nếu xử lý thất bại.
         """
-        if not image_paths or len(image_paths) > self.max_images:
-            raise ValueError(f"Số lượng ảnh phải từ 1 đến {self.max_images}")
-        if not isinstance(symptoms, str) or not symptoms.strip():
+        
+        if not image_paths or len(image_paths) > self.max_image:
+            raise ValueError(f"Số lượng ảnh phải nằm trong khoảng từ 1 đến {self.max_images}")
+        if not symptoms.strip():
             raise ValueError("Triệu chứng phải là chuỗi không rỗng")
 
         for img_path in image_paths:
             if not os.path.exists(img_path):
                 raise ValueError(f"Đường dẫn ảnh {img_path} không tồn tại")
             try:
-                with open(img_path, "rb") as f:
-                    img = Image.open(io.BytesIO(f.read()))
-                    if img.format != "JPEG":
-                        raise ValueError(f"Ảnh {img_path} phải ở định dạng JPEG")
+                img = Image.open(img_path)
+                if img.format != "JPEG":
+                    raise ValueError(f"Ảnh {img_path} phải ở định dạng JPEG")
             except Exception as e:
                 raise RuntimeError(f"Lỗi khi xử lý ảnh {img_path}: {str(e)}")
 
