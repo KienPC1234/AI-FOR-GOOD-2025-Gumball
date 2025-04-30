@@ -10,12 +10,13 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str
 
+
 class AccessToken(BaseModel):
     access_token: str
     token_type: str
     
 
-class AccessTokenPayload(BaseModel):
+class BaseTokenPayload(BaseModel):
     # Token subject (user ID)
     sub: int
 
@@ -29,17 +30,19 @@ class AccessTokenPayload(BaseModel):
     def security_stamp(self):
         """ Friendlier alias for `iss` field """
         return self.iss
+
+
+class AccessTokenPayload(BaseTokenPayload):
+    pass
     
 
-class RefreshTokenPayload(BaseModel):
-    # Token subject (user ID)
-    sub: int
+class RefreshTokenPayload(BaseTokenPayload):
+    pass
 
-    # The security stamp of the user
-    iss: str
 
-    # The expiration time of the token
-    exp: datetime
+class TaskTokenPayload(BaseTokenPayload):
+    # Celery task ID
+    task_id: str
 
     @property
     def security_stamp(self):

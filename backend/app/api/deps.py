@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
+from typing import Generator, Any, Callable
 
-from fastapi import Depends, Header, HTTPException, status, Request
+from fastapi import Depends, Header, HTTPException, status, Request, Body
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
-from pydantic import ValidationError
+from pydantic import ValidationError, BaseModel
 
 from app import models, schemas
 from app.core.config import settings
@@ -14,12 +15,13 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=True
 
 def get_db_wrapped(
     request: Request
-):
+) -> Generator[AsyncDBWrapper, Any, None]:
     """
     Get a wrapped database session.
     """
 
     yield request.state.db
+
 
 async def get_current_user(
     db: AsyncDBWrapper = Depends(get_db_wrapped), token: str = Depends(oauth2_scheme)
@@ -80,7 +82,7 @@ def get_current_active_superuser(
 def revalidate_with_refresh_token(
     refresh_token: str = Header(..., alias="refreshToken"),
     current_user: models.User = Depends(get_current_active_user),
-) -> tuple[models.User, schemas.RefreshTokenPayload]:
+) -> schemas.RefreshTokenPayload:
     """
     Get refresh token data from headers.
     """
@@ -91,11 +93,35 @@ def revalidate_with_refresh_token(
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     
     if current_user.id != refresh_token_data.sub or \
-        current_user.security_stamp != refresh_token_data.security_stamp:
-
+            current_user.security_stamp != refresh_token_data.security_stamp:
         raise HTTPException(status_code=401, detail="Invalid token for this user")
     
     if datetime.now(timezone.utc) > refresh_token_data.exp:
         raise HTTPException(status_code=401, detail="Refresh token expired")
     
-    return current_user, refresh_token_data
+    return refresh_token_data
+
+
+async def get_user_task(
+    taskToken: str = Body(None),
+    current_user: models.User = Depends(get_current_active_user)
+) -> schemas.TaskTokenPayload:
+    try:
+        payload = jwt.decode(
+            taskToken, settings.GENERAL_SECRET_KEY, settings.ALGORITHM
+        )
+        task_token_data = schemas.TaskTokenPayload(**payload)
+    except (JWTError, ValidationError):
+        raise HTTPException(
+            status_code=400,
+            detail="Could not process task info"
+        )
+    
+    if current_user.id != task_token_data.sub or \
+            current_user.security_stamp != task_token_data.security_stamp:
+        raise HTTPException(status_code=401, detail="Invalid token for this user")
+    
+    if datetime.now(timezone.utc) > task_token_data.exp:
+        raise HTTPException(status_code=401, detail="Task token expired")
+    
+    return task_token_data

@@ -141,9 +141,9 @@ async def login_simple(
 
 @router.post("/refresh-token", response_model=schemas.AccessToken)
 def refresh_access_token(
-    authed_pack: tuple[models.User, schemas.RefreshTokenPayload] = Depends(deps.revalidate_with_refresh_token),
+    refresh_token: schemas.RefreshTokenPayload = Depends(deps.revalidate_with_refresh_token),
+    current_user: models.User = Depends(deps.get_current_active_user)
 ) -> Any:
-    current_user, refresh_token = authed_pack
     return {
         "access_token": security.create_access_token(current_user),
         "token_type": "bearer",

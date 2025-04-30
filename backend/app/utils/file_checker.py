@@ -1,1 +1,0 @@
-# Implement application/DICOM, image/jpeg and image/png file validator

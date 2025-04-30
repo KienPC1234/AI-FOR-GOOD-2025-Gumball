@@ -3,6 +3,7 @@ from PIL import Image
 import io
 import os
 import tempfile
+from typing import Optional
 from ..xray_processing import process_xray_image
 import google.generativeai as genai
 
@@ -44,8 +45,7 @@ class PatientAI:
     def diagnose_images(
         self,
         image_bytes_list: list[bytes],
-        symptoms: str | None = None,
-        include_symptoms: bool = False,
+        symptoms: Optional[str] = None,
         include_xray_image: bool = False
     ) -> tuple[str, list[dict]]:
         """
@@ -66,8 +66,8 @@ class PatientAI:
         """
         if not image_bytes_list or len(image_bytes_list) > self.max_images:
             raise ValueError(f"Số lượng ảnh phải từ 1 đến {self.max_images}")
-        if include_symptoms and (not isinstance(symptoms, str) or not symptoms.strip()):
-            raise ValueError("Triệu chứng phải là chuỗi không rỗng khi được bao gồm")
+        
+        symptoms = symptoms.strip() if symptoms else None
 
         pathologies_list = []
         gradcam_images_list = []
@@ -104,7 +104,7 @@ class PatientAI:
             for pathology, prob in pathologies:
                 prompt += f"- {pathology}: Xác suất {prob:.2f}\n"
         
-        if include_symptoms and symptoms:
+        if symptoms:
             prompt += f"\nTriệu chứng từ bệnh nhân: {symptoms}\n"
         
         prompt += "\nTrả lời:"
