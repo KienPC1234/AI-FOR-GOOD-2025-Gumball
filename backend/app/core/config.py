@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # Celery
     CELERY_BROKER_URL: str
     CELERY_RESULT_BACKEND: str
+    CELERY_RESULT_EXPIRE_SECONDS: int
 
     # Gemini
     GEMINI_API_KEY: str
