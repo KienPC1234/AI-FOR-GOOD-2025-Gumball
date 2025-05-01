@@ -6,6 +6,12 @@ class GumballException(Exception):
     """
     pass
 
+class InvalidActionError(GumballException):
+    """
+    Exceptions for user's invalid actions.
+    """
+    pass
+
 class DiskOperationError(GumballException):
     """
     Gumball disk-related error

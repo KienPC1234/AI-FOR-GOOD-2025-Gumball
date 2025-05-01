@@ -42,7 +42,10 @@ class RefreshTokenPayload(BaseTokenPayload):
 
 class TaskTokenPayload(BaseTokenPayload):
     # Celery task ID
-    task_id: str
+    id: str
+
+    # Celery task name
+    name: str
 
     @property
     def security_stamp(self):

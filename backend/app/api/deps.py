@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Generator, Any, Callable
+from typing import Generator, Any, Iterable
 
 from fastapi import Depends, Header, HTTPException, status, Request, Body
 from fastapi.security import OAuth2PasswordBearer
@@ -125,3 +125,20 @@ async def get_user_task(
         raise HTTPException(status_code=401, detail="Task token expired")
     
     return task_token_data
+
+
+def get_validated_task(
+    *names: str
+):  
+    """
+    Get task info from JWT token and check if its name is included in `names`
+    """
+
+    def __(
+        task: schemas.TaskTokenPayload = Depends(get_user_task)
+    ) -> schemas.TaskTokenPayload:
+        if task.name not in names:
+            raise HTTPException(status_code=400, detail="Invalid task token")
+        return task
+    
+    return __

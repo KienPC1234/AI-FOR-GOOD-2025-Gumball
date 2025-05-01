@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash, generate_security_stamp
+from app.extypes import UserRole
 from app.models import User
-from app.states import UserRole
 from .config import *
 
 def create_temporary_user(db: Session):

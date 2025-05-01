@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models, schemas
 from app.api import deps
+from app.extypes import UserRole
 from app.utils.db_wrapper import AsyncDBWrapper
-from app.states import UserRole
 from app.core.security import generate_security_stamp, get_password_hash
 
 logger = logging.getLogger(__name__)

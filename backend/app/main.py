@@ -11,12 +11,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import create_engine
 
+import app.middlewares as middlewares
 from app.api.api import api_router
 from app.core.config import settings
 from app.db.base import Base
 from app.models.user import User
-import app.middlewares as middlewares
-from app.states import GumballException
+from app.extypes import GumballException
 
 
 @asynccontextmanager

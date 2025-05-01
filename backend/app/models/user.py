@@ -5,7 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 from sqlalchemy.sql import func
 
 from app.db.base_class import Base
-from app.states import UserRole, IntEnumType
+from app.extypes import UserRole, IntEnumType
 from app.utils.lazy import lazy_load_function
 
 

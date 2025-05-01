@@ -20,18 +20,16 @@ async def get_task_status(
     """
 
     try:
-        result = AsyncResult(task_data.task_id, app=celery_app)
+        result = AsyncResult(task_data.id, app=celery_app)
         state = result.state
 
         if state == 'PENDING' and not result.ready():
             return {
-                "status": "pending",
-                "result": None
+                "status": "pending"
             }
         elif state != 'PENDING' and result.ready():
             return {
-                "status": state.lower(),
-                "result": result.result if state == "SUCCESS" else None
+                "status": state.lower()
             }
         else:
             return {
@@ -52,7 +50,7 @@ async def cancel_task(
     """
 
     try:
-        result = AsyncResult(task_data.task_id, app=celery_app)
+        result = AsyncResult(task_data.id, app=celery_app)
 
         if not result.ready():
             result.revoke(terminate=True, signal='SIGKILL')

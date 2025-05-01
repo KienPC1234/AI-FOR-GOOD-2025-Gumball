@@ -10,10 +10,23 @@ from pathlib import Path
 from typing import Optional, Callable, Generator
 
 from app.core.config import settings
-from app.states import DiskOperationError
+from app.extypes import DiskOperationError, InvalidActionError
+from app.extypes.user_items import AIInspectionType
+from app.utils import load_analyzation_output
+
 
 
 EMPTY_PATH = Path("")
+
+# User dir names
+UPLOADED_IMG_DIR = Path("uploaded_images")      # For uploaded xray images, but is not analyzed
+ANALYZED_IMG_DIR = Path("analyzed_images")      # Analyzed xray images moves here
+ANALYSIS_DIR = Path("analysis")                 # Analysis from AI
+HEATMAP_DIR = Path("heatmap")                   # Heatmaps are saved in a separate directory
+INSPECTION_DIR = Path("inspections")            # Inspections from AI
+DIAGNOSIS_DIR = Path("diagnosis")               # Diagnosis from AI
+TREATMENTS_DIR = Path("treatments")             # Suggested treatments by AI
+USER_DIRS = 'UPLOADED_IMG_DIR', 'ANALYZED_IMG_DIR', 'ANALYSIS_DIR', 'HEATMAP_DIR', 'INSPECTION_DIR', 'DIAGNOSIS_DIR', 'TREATMENTS_DIR'
 
 
 def _path_supplied(function):
@@ -22,7 +35,14 @@ def _path_supplied(function):
     """
 
     signature = inspect.signature(function)
-    if "path" not in signature.parameters:
+    target_param = None
+
+    for name, param in signature.parameters.items():
+        if param.annotation == Path:
+            target_param = name
+            break
+
+    if not target_param:
         return function
 
     @functools.wraps(function)
@@ -30,15 +50,16 @@ def _path_supplied(function):
         bound_args = signature.bind(self, *args, **kwargs)
         bound_args.apply_defaults()
         
-        path_value = bound_args.arguments.get("path")
+        path_value = bound_args.arguments.get(target_param)
         if path_value is not None:
-            bound_args.arguments["path"] = self._map_path(path_value, root_path=self.base_dir)
+            bound_args.arguments[target_param] = self._map_path(path_value, root_path=self.base_dir)
         else:
-            bound_args.arguments["path"] = None
+            bound_args.arguments[target_param] = None
         
         return function(self, *bound_args.args, **bound_args.kwargs)
     
     return wrapper
+
 
 
 class StorageBase(ABC):
@@ -174,13 +195,13 @@ class Storage(StorageBase):
             fp.close()
         
     
-    def absolute_of(self, path: os.PathLike):
+    def abs_of(self, path: os.PathLike):
         """
         Convert a path to absolute and also verify it
         """
         return self._map_path(path)
     
-    def absolute(self) -> Path:
+    def abs(self) -> Path:
         """
         Get the absolute path of the base directory
         """
@@ -207,9 +228,6 @@ class Storage(StorageBase):
     
 
 class Mounted(Storage):
-    def __init__(self, path: os.PathLike):
-        super().__init__(path)
-
     def __enter__(self):
         return self
     
@@ -218,37 +236,73 @@ class Mounted(Storage):
 
 
 class UserStorage(Storage):
-    UPLOADED_IMG_DIR = Path("uploaded_images") # For uploaded xray images, but is not analyzed
-    ANALYZED_IMG_DIR = Path("analyzed_images") # Analyzed xray images moves here
-    ANALYSIS_DIR = Path("analysis") # Analysis from AI saved here
-    HEATMAP_DIR = Path("heatmap") # Heatmaps are saved in a separate directory
-    DIAGNOSIS_DIR = Path("diagnosis") # Diagnosis from AI saved here
-
-
-    __slots__ = 'UPLOADED_IMG_DIR', 'ANALYZED_IMG_DIR', 'ANALYSIS_DIR', 'HEATMAP_DIR', 'DIAGNOSIS_DIR'
-
-
     def __init__(self):
         super().__init__(settings.BASE_USER_STORAGE_PATH)
 
-    def user_dir(self, user_id: int) -> Mounted:
-        return Mounted(self.base_dir / f"user_{user_id}")
+    def dir_of(self, user_id: int) -> 'UserFolder':
+        return UserFolder(self.base_dir / f"user_{user_id}")
+
+
+class UserFolder(Storage):
+    __slots__ = 'user_id'
+
+    def __init__(self, user_id: int):
+        self.user_id = user_id
+
+        super().__init__(self.folder_name)
     
-    def user_uploaded_img_dir(self, user_id: int):
-        return Mounted(self.base_dir / f"user_{user_id}" / self.UPLOADED_IMG_DIR)
+    @property
+    def folder_name(self):
+        return f"user_{self.user_id}"
     
-    def user_analyzed_img_dir(self, user_id: int):
-        return Mounted(self.base_dir / f"user_{user_id}" / self.ANALYZED_IMG_DIR)
+    def diagnosis(self, scan_id: str):
+        return self._map_path(f"{scan_id}.md", self.base_dir / DIAGNOSIS_DIR)
     
-    def user_analysis_dir(self, user_id: int):
-        return Mounted(self.base_dir / f"user_{user_id}" / self.ANALYSIS_DIR)
+    def new_diag_name(self, scan_id: str):
+        path = self._map_path(f"{scan_id}.md", self.base_dir / DIAGNOSIS_DIR)
+        if path.exists():
+            raise InvalidActionError("Diagnosis already existed")
+        
+        return path
     
-    def user_heatmap_dir(self, user_id: int):
-        return Mounted(self.base_dir / f"user_{user_id}" / self.HEATMAP_DIR)
+    def inspection(self, scan_id: str, type: AIInspectionType):
+        return self._map_path(f"{scan_id}.{type.value}", self.base_dir / INSPECTION_DIR)
     
-    def list_user_dir(self, user_id: int, *, as_tuple: bool = False):
-        iterable = self.list_dir(self.user_dir(user_id))
-        return (*iterable,) if as_tuple else iterable
+    def new_inspection_name(self, scan_id: str, type: AIInspectionType):
+        path = self._map_path(f"{scan_id}.{type.value}", self.base_dir / INSPECTION_DIR)
+        if path.exists():
+            raise InvalidActionError("Inspection already existed")
+        
+        return path
+    
+    def analysis(self, scan_id: str):
+        return self._map_path(f"{scan_id}.h5", self.base_dir / ANALYSIS_DIR)
+    
+    def new_analysis_name(self, scan_id: str):
+        path = self._map_path(f"{scan_id}.h5", self.base_dir / ANALYSIS_DIR)
+        if path.exists():
+            raise InvalidActionError("Analysis already existed")
+        
+        return path
+    
+    def read_analysis(self, scan_id: str):
+        return load_analyzation_output(self._map_path(f"{scan_id}.h5", self.base_dir / ANALYSIS_DIR))
+
+    def analyzed_image(self, scan_id: str):
+        return self._map_path(f"{scan_id}.jpeg", self.base_dir / ANALYZED_IMG_DIR)
+    
+    def uploaded_image(self, name: str):
+        return self._map_path(name, self.base_dir / UPLOADED_IMG_DIR)
+
+    def mark_analyzed_image(self, scan_id: str):
+        analyzed_path = self.analyzed_image(scan_id)
+        self.uploaded_image(f"{scan_id}.jpeg").replace(analyzed_path)
+        return analyzed_path
+
+    def add_scan(self, ext: str, buffer: BufferedIOBase):
+        image_name = self.avail_file_name(ext=ext)
+        self.save_file(buffer, self.uploaded_image(image_name))
+        return image_name
 
 
 # Instantiate the storage object

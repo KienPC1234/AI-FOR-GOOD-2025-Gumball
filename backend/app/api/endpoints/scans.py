@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.api import deps
 from app.utils.db_wrapper import AsyncDBWrapper
-from app.states import UserRole
+from app.extypes import UserRole
 
 logger = logging.getLogger(__name__)
 
