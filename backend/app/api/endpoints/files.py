@@ -1,15 +1,17 @@
 import os
-from datetime import datetime
-from PIL import Image, ExifTags
-from typing import List
+from io import BufferedIOBase
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from sqlalchemy.orm import Session
+from fastapi.responses import StreamingResponse
+from celery.result import AsyncResult
 
-from app import models
+from app import models, schemas
 from app.api import deps
+from app.celery_app import celery_app
 from app.core.config import settings
+from app.core.security import create_task_token
 from app.core.storage import user_storage
+from app.tasks import convert_to_jpeg_task
 
 router = APIRouter()
 
@@ -18,109 +20,70 @@ router = APIRouter()
 def add_image(
     file: UploadFile = File(...),
     current_user: models.User = Depends(deps.get_current_active_user),
-    # db: Session = Depends(deps.get_db),
 ) -> dict:
     """
     Upload an image and store it in the user's folder.
+    Automatically continue to convert image to jpeg.
     """
 
     if file.size > settings.MAX_FILE_UPLOAD_SIZE:
         raise HTTPException(status_code=400, detail="File size exceeded limit")
     
     try:
-        user_folder = user_storage.get_user_folder(current_user.id)
         file_ext = os.path.splitext(file.filename)[1]
 
         if file_ext not in settings.IMAGE_FILE_ALLOWED_EXTENSIONS:
             raise HTTPException(status_code=400, detail="Image file extension not allowed")
-
-        save_path = user_folder.available_file_name() + file_ext
-        user_folder.save_file(file, save_path)
-        return {"message": "Image uploaded successfully", "file_path": save_path}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to upload image")
-
-
-@router.get("/images", response_model=List[str])
-def list_images(
-    current_user: models.User = Depends(deps.get_current_active_user),
-    # db: Session = Depends(deps.get_db),
-) -> List[str]:
-    """
-    List all images uploaded by the current user.
-    """
-    try:
-        return user_storage.list_user_dir(current_user.id, as_tuple=True)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to list images")
-
-
-@router.delete("/images/{file_name}", response_model=dict)
-def remove_image(
-    file_name: str,
-    current_user: models.User = Depends(deps.get_current_active_user),
-    # db: Session = Depends(deps.get_db),
-) -> dict:
-    """
-    Remove an image by its file name from the user's folder.
-    """
-    try:
-        user_folder = user_storage.get_user_folder(current_user.id)
-        if not user_folder.exists(file_name):
-            raise HTTPException(status_code=404, detail="File not found")
-        user_storage.delete_file(file_name)
-        return {"message": "Image deleted successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to delete image")
-
-
-@router.get("/images/{file_name}", response_model=dict)
-def get_image_details(
-    file_name: str,
-    current_user: models.User = Depends(deps.get_current_active_user),
-    # db: Session = Depends(deps.get_db),
-) -> dict:
-    """
-    Get details of a specific image uploaded by the user.
-    """
-    try:
-        user_folder = user_storage.get_user_folder(current_user.id)
-
-        if not user_folder.exists(file_name):
-            raise HTTPException(status_code=404, detail="File not found")
-
-        file_path = user_folder.absolute_of(file_name)
         
-        # File system metadata
-        stat = file_path.stat()
-        size_bytes = stat.st_size
-        created_at = datetime.fromtimestamp(stat.st_birthtime).isoformat()
+        user_folder = user_storage.dir_of(current_user.id)
+        image_name = user_folder.add_scan(file_ext, file.file)
 
-        # Image-specific metadata
-        with Image.open(file_path) as img:
-            width, height = img.size
-            mode = img.mode
-            format = img.format
-
-            # Extract basic EXIF data
-            exif_data = {}
-            if img._exif:
-                for tag_id, value in img._exif.items():
-                    tag = ExifTags.TAGS.get(tag_id, tag_id)
-                    if tag in ("DateTimeOriginal", "Make", "Model"):
-                        exif_data[tag] = value
-
-            exif_data = exif_data or None
+        task = convert_to_jpeg_task.delay(current_user.id, image_name)
 
         return {
-            "file_name": file_name,
-            "size_bytes": size_bytes,
-            "created_at": created_at,
-            "width": width,
-            "height": height,
-            "mode": mode,
-            "format": format,
-            "exif": exif_data
+            "task_token": create_task_token(current_user, task)
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to get image details")
+        raise HTTPException(status_code=500, detail="Failed to upload and process image")
+    
+
+@router.get("/images/{file_name}", response_model=BufferedIOBase)
+def get_image(
+    file_name: str,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> dict:
+    """
+    Retrieve processed images.
+    """
+    try:
+        user_folder = user_storage.dir_of(current_user.id)
+        image_path = user_folder.analyzed_image(file_name)
+
+        if not image_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+
+        return StreamingResponse(
+            open(image_path, "rb"),
+            media_type="image/jpeg"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to get image")
+    
+
+@router.post("/analysis/name/")
+def get_analysis_name(
+    analyze_task: schemas.TaskTokenPayload = Depends(deps.get_validated_task("app.tasks.analyze_xray")),
+) -> str:
+    """
+    Get analysis name. Its essentially just the file name without extension.
+    """
+
+    analysis_result = AsyncResult(analyze_task.id, app=celery_app)
+    if not analysis_result.ready():
+        raise HTTPException(status_code=400, detail="X-ray analyzation in progress")
+    elif analysis_result.state != 'SUCCESS':
+        raise HTTPException(status_code=400, detail="X-ray analyzation failed")
+    
+    return analysis_result.result

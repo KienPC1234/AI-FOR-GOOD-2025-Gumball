@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Dict, Any, Optional, Collection
 import numpy as np
 
 class PatientAI:
@@ -6,8 +6,8 @@ class PatientAI:
     def answer_question(self, question: str) -> str: ...
     def diagnose_images(
         self,
-        image_bytes_list: List[bytes],
+        image_bytes_list: Optional[Collection[bytes]] = ...,
+        processed_xrays: Optional[Collection[tuple[list[tuple[str, float]], list[dict[str, str | float | np.ndarray]]]]] = ...,
         symptoms: Optional[str] = ...,
-        include_symptoms: bool = ...,
         include_xray_image: bool = ...
-    ) -> Tuple[str, List[Dict[str, Any]]]: ...
+    ) -> tuple[str, list[dict]] | str: ...

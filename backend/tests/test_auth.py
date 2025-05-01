@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models
 from app.core.security import compose_refresh_token
-from app.states import UserRole
+from app.extypes import UserRole
 from .config import *
 from .utils import create_temporary_user, cleanup_temporary_user
 

@@ -1,11 +1,11 @@
 import string
-from app.states import UserRole
+from app.extypes import UserRole
 from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
 
-from app.states import UserRole
+from app.extypes import UserRole
 
 # Shared properties
 class UserBase(BaseModel):

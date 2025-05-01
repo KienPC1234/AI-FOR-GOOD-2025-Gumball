@@ -4,11 +4,62 @@ import inspect
 import os
 import shutil
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from io import BufferedIOBase
 from pathlib import Path
 from typing import Optional, Callable, Generator
 
 from app.core.config import settings
+from app.extypes import DiskOperationError, InvalidActionError
+from app.extypes.user_items import AIInspectionType
+from app.utils import load_analyzation_output
+
+
+
+EMPTY_PATH = Path("")
+
+# User dir names
+UPLOADED_IMG_DIR = Path("uploaded_images")      # For uploaded xray images, but is not analyzed
+ANALYZED_IMG_DIR = Path("analyzed_images")      # Analyzed xray images moves here
+ANALYSIS_DIR = Path("analysis")                 # Analysis from AI
+HEATMAP_DIR = Path("heatmap")                   # Heatmaps are saved in a separate directory
+INSPECTION_DIR = Path("inspections")            # Inspections from AI
+DIAGNOSIS_DIR = Path("diagnosis")               # Diagnosis from AI
+TREATMENTS_DIR = Path("treatments")             # Suggested treatments by AI
+USER_DIRS = 'UPLOADED_IMG_DIR', 'ANALYZED_IMG_DIR', 'ANALYSIS_DIR', 'HEATMAP_DIR', 'INSPECTION_DIR', 'DIAGNOSIS_DIR', 'TREATMENTS_DIR'
+
+
+def _path_supplied(function):
+    """
+    Automatically apply the relative path under parameter `path` to the base directory and perform security check.
+    """
+
+    signature = inspect.signature(function)
+    target_param = None
+
+    for name, param in signature.parameters.items():
+        if param.annotation == Path:
+            target_param = name
+            break
+
+    if not target_param:
+        return function
+
+    @functools.wraps(function)
+    def wrapper(self: 'Storage', *args, **kwargs):
+        bound_args = signature.bind(self, *args, **kwargs)
+        bound_args.apply_defaults()
+        
+        path_value = bound_args.arguments.get(target_param)
+        if path_value is not None:
+            bound_args.arguments[target_param] = self._map_path(path_value, root_path=self.base_dir)
+        else:
+            bound_args.arguments[target_param] = None
+        
+        return function(self, *bound_args.args, **bound_args.kwargs)
+    
+    return wrapper
+
 
 
 class StorageBase(ABC):
@@ -40,49 +91,36 @@ class StorageBase(ABC):
     def list_dir(self, directory: Optional[Path] = None) -> Generator[Path, None, None]:
         raise NotImplementedError
 
+
 class Storage(StorageBase):
+    """
+    `_base_dir`: top most directory
+    `base_dir`: current directory
+    """
+
+    __slots__ = '_root_dir', '_cd'
+
     def __init__(self, base_subdir: Optional[Path] = None):
-        self._base_dir = Path(settings.BASE_STORAGE_PATH).absolute()
+        self._root_dir = Path(settings.BASE_STORAGE_PATH).absolute()
         if base_subdir:
-            self._base_dir = self._map_path(base_subdir)
+            self._root_dir = self._map_path(base_subdir)
         
         try:
-            self._base_dir.mkdir(parents=True, exist_ok=True)
+            self._root_dir.mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            raise RuntimeError(f"Failed to create base directory") from e
+            raise DiskOperationError(f"Failed to create base directory") from e
+        
+        self._cd = Path("")
 
     @property
     def base_dir(self):
-        return self._base_dir
+        return self._root_dir / self._cd
 
-    def _map_path(self, path: os.PathLike, base_path: Optional[Path] = None) -> Path:
-        mapped = ((base_path or self.base_dir) / path).absolute()
-        if not mapped.relative_to(self.base_dir):
-            raise ValueError(f"Path {path} is outside of the base directory.")
+    def _map_path(self, path: os.PathLike, root_path: Optional[Path] = None) -> Path:
+        mapped = ((root_path or self._root_dir) / path).absolute()
+        if not mapped.is_relative_to(self._root_dir):
+            raise DiskOperationError(f"Path {path} is outside of the base directory.")
         return mapped
-    
-    @staticmethod
-    def _path_supplied(function: Callable):
-        """
-        Automatically apply the relative path under parameter `path` to the base directory and perform security check.
-        """
-
-        signature = inspect.signature(function)
-
-        if "path" not in signature.parameters:
-            return function
-
-        @functools.wraps(function)
-        def wrapper(self: 'Storage', *args, **kwargs):
-            bound_args = signature.bind(self, *args, **kwargs)
-            bound_args.apply_defaults()
-            
-            path_value = bound_args.arguments.get("path")
-            bound_args.arguments["path"] = self._map_path(path_value) if path_value is not None else path_value
-            
-            return function(self, *bound_args.args, **bound_args.kwargs)
-        
-        return wrapper
     
     @_path_supplied
     def new_dir(self, path: Path) -> Path:
@@ -90,7 +128,7 @@ class Storage(StorageBase):
         return path
 
     @_path_supplied
-    def save_file(self, file: BufferedIOBase, path: Path) -> Path:
+    def save_file(self, file: BufferedIOBase, path: Path = Path("")) -> Path:
         """
         Store the content under the given path, then return the absolute path (relative to `self.base_dir`)
         """
@@ -99,24 +137,24 @@ class Storage(StorageBase):
         return path
     
     @_path_supplied
-    def read_file(self, path: Path) -> BufferedIOBase:
+    def read_file(self, path: Path = Path("")) -> BufferedIOBase:
         if path.exists():
             return path.open("rb")
-        raise FileNotFoundError(f"File {path} not found in storage.")
+        raise DiskOperationError(f"File {path} not found in storage.")
 
     @_path_supplied
-    def delete_file(self, path: Path) -> None:
+    def delete_file(self, path: Path = Path("")) -> None:
         if not path.exists():
-            raise FileNotFoundError(f"File {path} not found in storage.")
+            raise DiskOperationError(f"File {path} not found in storage.")
         path.unlink()
 
     @_path_supplied
-    def delete_folder(self, path: Path) -> None:
+    def delete_folder(self, path: Path = Path("")) -> None:
         if not path.exists():
-            raise FileNotFoundError(f"Directory {path} not found in storage.")
+            raise DiskOperationError(f"Directory {path} not found in storage.")
         shutil.rmtree(path)
 
-    def exists(self, path: os.PathLike) -> bool:
+    def exists(self, path: os.PathLike = Path("")) -> bool:
         return self._map_path(path).exists()
 
     @_path_supplied
@@ -129,21 +167,55 @@ class Storage(StorageBase):
         return path.iterdir()
     
     def mountable(self, path: os.PathLike):
-        return Mounted(self, path)
+        return Mounted(self._map_path(path))
     
-    def absolute_of(self, path: os.PathLike):
+    @_path_supplied
+    @contextmanager
+    def cd(self, path: Path):
+        if not path.exists():
+            raise DiskOperationError("Invalid path")
+        
+        old_cd = self._cd
+        try:
+            self._cd = path.relative_to(self._root_dir)
+            yield
+        finally:
+            self._cd = old_cd
+
+    @_path_supplied
+    @contextmanager
+    def open(path: Path, mode: str):
+        if not path.exists() or path.is_dir():
+            raise DiskOperationError("Invalid file path")
+        
+        try:
+            fp = open(path, mode)
+            yield fp
+        finally:
+            fp.close()
+        
+    
+    def abs_of(self, path: os.PathLike):
+        """
+        Convert a path to absolute and also verify it
+        """
         return self._map_path(path)
     
-    def absolute(self) -> Path:
+    def abs(self) -> Path:
+        """
+        Get the absolute path of the base directory
+        """
         return self.base_dir.absolute()
     
     def __fspath__(self) -> str:
         return self.base_dir.__fspath__()
 
-    def available_file_name(self,
+    def avail_file_name(self,
             *,
             random_bytes_generator: Callable[[int], bytes] = os.urandom,
-            bytes_length: int = 15
+            bytes_length: int = 15,
+            ext: Optional[str] = "",
+            absolute: bool = False
         ) -> Path:
         """
         Generate a random available file name in the directory.
@@ -152,37 +224,86 @@ class Storage(StorageBase):
         random_provider = lambda: "".join(hex(x)[2:].rjust(2, '0') for x in random_bytes_generator(bytes_length))
         while self.exists(fname := random_provider()):
             pass
-        return self._map_path(fname)
+        return self._map_path(fname + ext) if absolute else Path(fname + ext)
     
 
 class Mounted(Storage):
-    def __init__(self, storage: Storage, path: os.PathLike):
-        super().__init__(path)
-
-        self.storage = storage
-
     def __enter__(self):
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
-    
-    @Storage._path_supplied
-    def mount(self, path: Path) -> None:
-        self.path = path
-        return self
 
 
 class UserStorage(Storage):
     def __init__(self):
         super().__init__(settings.BASE_USER_STORAGE_PATH)
 
-    def get_user_folder(self, user_id: int) -> Mounted:
-        return Mounted(self, f"user_{user_id}")
+    def dir_of(self, user_id: int) -> 'UserFolder':
+        return UserFolder(self.base_dir / f"user_{user_id}")
+
+
+class UserFolder(Storage):
+    __slots__ = 'user_id'
+
+    def __init__(self, user_id: int):
+        self.user_id = user_id
+
+        super().__init__(self.folder_name)
     
-    def list_user_dir(self, user_id: int, *, as_tuple: bool = False):
-        iterable = self.list_dir(self.get_user_folder(user_id))
-        return (*iterable,) if as_tuple else iterable
+    @property
+    def folder_name(self):
+        return f"user_{self.user_id}"
+    
+    def diagnosis(self, scan_id: str):
+        return self._map_path(f"{scan_id}.md", self.base_dir / DIAGNOSIS_DIR)
+    
+    def new_diag_name(self, scan_id: str):
+        path = self._map_path(f"{scan_id}.md", self.base_dir / DIAGNOSIS_DIR)
+        if path.exists():
+            raise InvalidActionError("Diagnosis already existed")
+        
+        return path
+    
+    def inspection(self, scan_id: str, type: AIInspectionType):
+        return self._map_path(f"{scan_id}.{type.value}", self.base_dir / INSPECTION_DIR)
+    
+    def new_inspection_name(self, scan_id: str, type: AIInspectionType):
+        path = self._map_path(f"{scan_id}.{type.value}", self.base_dir / INSPECTION_DIR)
+        if path.exists():
+            raise InvalidActionError("Inspection already existed")
+        
+        return path
+    
+    def analysis(self, scan_id: str):
+        return self._map_path(f"{scan_id}.h5", self.base_dir / ANALYSIS_DIR)
+    
+    def new_analysis_name(self, scan_id: str):
+        path = self._map_path(f"{scan_id}.h5", self.base_dir / ANALYSIS_DIR)
+        if path.exists():
+            raise InvalidActionError("Analysis already existed")
+        
+        return path
+    
+    def read_analysis(self, scan_id: str):
+        return load_analyzation_output(self._map_path(f"{scan_id}.h5", self.base_dir / ANALYSIS_DIR))
+
+    def analyzed_image(self, scan_id: str):
+        return self._map_path(f"{scan_id}.jpeg", self.base_dir / ANALYZED_IMG_DIR)
+    
+    def uploaded_image(self, name: str):
+        return self._map_path(name, self.base_dir / UPLOADED_IMG_DIR)
+
+    def mark_analyzed_image(self, scan_id: str):
+        analyzed_path = self.analyzed_image(scan_id)
+        self.uploaded_image(f"{scan_id}.jpeg").replace(analyzed_path)
+        return analyzed_path
+
+    def add_scan(self, ext: str, buffer: BufferedIOBase):
+        image_name = self.avail_file_name(ext=ext)
+        self.save_file(buffer, self.uploaded_image(image_name))
+        return image_name
+
 
 # Instantiate the storage object
 base_storage = Storage()

@@ -1,4 +1,6 @@
 from typing import List, Tuple, Dict, Any
 import numpy as np
+from ..torchxrayvision import baseline_models
 
+def get_model() -> baseline_models.chexpert.DenseNet: ...
 def process_xray_image(img_path: str) -> Tuple[List[Tuple[str, float]], List[Dict[str, Any]]]: ...

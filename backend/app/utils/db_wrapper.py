@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.models as models
+from app.extypes import UserRole
 from app.models import PatientDetails, User, Scan, DoctorConnectToken
-from app.states import UserRole
 
 
 class AsyncDBWrapper:

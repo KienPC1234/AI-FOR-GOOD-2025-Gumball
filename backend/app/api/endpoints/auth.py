@@ -1,17 +1,12 @@
-from datetime import timedelta, datetime
 from typing import Any
 
-from jose import jwt, JWTError
-from fastapi import APIRouter, Depends, HTTPException, Form, Header, BackgroundTasks
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from fastapi import APIRouter, Depends, HTTPException, Form, Header
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.api import deps
 from app.core import security
 from app.core.config import settings
-from app.core.email import send_registration_email
 from app.utils.db_wrapper import AsyncDBWrapper
 from app.tasks import send_email_task
 
@@ -67,7 +62,6 @@ async def register_user(
     *,
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
     user_in: schemas.UserCreate,
-    background_tasks: BackgroundTasks,
 ) -> Any:
     """
     Register a new user.
@@ -91,12 +85,6 @@ async def register_user(
     )
 
     await db.save_user(user)
-
-    # Send registration email
-    try:
-        send_registration_email(user.email, background_tasks)
-    except Exception as e:
-        print(f"Error sending registration email: {e}")
 
     return user
 
@@ -141,28 +129,14 @@ async def login_simple(
 
 @router.post("/refresh-token", response_model=schemas.AccessToken)
 def refresh_access_token(
-    authed_pack: tuple[models.User, schemas.RefreshTokenPayload] = Depends(deps.revalidate_with_refresh_token),
+    refresh_token: schemas.RefreshTokenPayload = Depends(deps.revalidate_with_refresh_token),
+    current_user: models.User = Depends(deps.get_current_active_user)
 ) -> Any:
-    current_user, refresh_token = authed_pack
     return {
         "access_token": security.create_access_token(current_user),
         "token_type": "bearer",
     }
 
-""" Invalidate the endpoint for retrying registration email """
-""" Further checks should be done to ensure safeness """
-# @router.post("/retry-registration-email")
-# def retry_registration_email(
-#     email: str = Form(...),
-# ) -> Any:
-#     """
-#     Retry sending the registration email.
-#     """
-#     try:
-#         send_registration_email_task(email)  # Uses the renamed function
-#         return {"message": "Registration email retry initiated successfully."}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail="Failed to retry email")
 
 def send_registration_email_task(email_to: str) -> None:
     subject = f"Welcome to {settings.PROJECT_NAME}!"

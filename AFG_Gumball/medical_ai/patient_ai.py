@@ -1,8 +1,10 @@
 from .gemini_client import GeminiAI
 from PIL import Image
+from numpy import ndarray
 import io
 import os
 import tempfile
+from typing import Optional, Collection
 from ..xray_processing import process_xray_image
 import google.generativeai as genai
 
@@ -43,51 +45,62 @@ class PatientAI:
 
     def diagnose_images(
         self,
-        image_bytes_list: list[bytes],
-        symptoms: str | None = None,
-        include_symptoms: bool = False,
+        image_bytes_list: Optional[Collection[bytes]] = None,
+        processed_xrays: Optional[Collection[tuple[list[tuple[str, float]], list[dict[str, str | float | ndarray]]]]] = None,
+        symptoms: Optional[str] = None,
         include_xray_image: bool = False
-    ) -> tuple[str, list[dict]]:
+    ) -> tuple[str, list[dict]] | str:
         """
         Chẩn đoán dựa trên ảnh X-quang và triệu chứng (nếu có).
 
         Args:
             image_bytes_list (list[bytes]): Danh sách dữ liệu bytes của ảnh X-quang.
+            processed_xrays (tuple[list, list]): Danh sách dữ liệu X-quang đã được xử lý
             symptoms (str, optional): Triệu chứng của bệnh nhân.
             include_symptoms (bool): Bao gồm triệu chứng trong chẩn đoán.
             include_xray_image (bool): Bao gồm ảnh X-quang gốc trong phân tích.
 
         Returns:
-            tuple[str, list[dict]]: Chẩn đoán (chuỗi) và danh sách heatmap (mỗi heatmap chứa pathology, probability, heatmap_array).
+            tuple[str, list[dict]] | str: Chẩn đoán (chuỗi) và danh sách heatmap (mỗi heatmap chứa pathology, probability, heatmap_array) hoặc nguyên chẩn đoán nếu đầu vào không phải ảnh
 
         Raises:
             ValueError: Nếu đầu vào không hợp lệ.
             RuntimeError: Nếu xử lý ảnh thất bại.
         """
-        if not image_bytes_list or len(image_bytes_list) > self.max_images:
-            raise ValueError(f"Số lượng ảnh phải từ 1 đến {self.max_images}")
-        if include_symptoms and (not isinstance(symptoms, str) or not symptoms.strip()):
-            raise ValueError("Triệu chứng phải là chuỗi không rỗng khi được bao gồm")
+        if not (image_bytes_list and processed_xrays):
+            raise ValueError("Phải có ảnh làm dữ liệu đầu vào")
+        elif image_bytes_list and processed_xrays:
+            raise ValueError("Chỉ được chọn một trong hai phương thức cung cấp ảnh")
+        
+        if (not image_bytes_list or len(image_bytes_list) > self.max_images) or \
+            (not processed_xrays or len(processed_xrays) > self.max_images):
+            raise ValueError(f"Số lượng ảnh phải nằm trong khoảng từ 1 đến {self.max_images}")
+        
+        symptoms = symptoms.strip() if symptoms else None
 
-        pathologies_list = []
-        gradcam_images_list = []
         temp_files = []
-        for img_bytes in image_bytes_list:
-            try:
-                img = Image.open(io.BytesIO(img_bytes))
-                if img.format != "JPEG":
-                    raise ValueError("Ảnh phải ở định dạng JPEG")
-                
-                # Lưu ảnh tạm để sử dụng với process_xray_image và upload
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-                    img.save(tmp.name, format="JPEG")
-                    temp_files.append(tmp.name)
-                
-                pathologies, gradcam_images = process_xray_image(temp_files[-1])
-                pathologies_list.append(pathologies)
-                gradcam_images_list.append(gradcam_images)
-            except Exception as e:
-                raise RuntimeError(f"Lỗi khi xử lý ảnh: {str(e)}")
+
+        if image_bytes_list:
+            pathologies_list = []
+            gradcam_images_list = []
+            for img_bytes in image_bytes_list:
+                try:
+                    img = Image.open(io.BytesIO(img_bytes))
+                    if img.format != "JPEG":
+                        raise ValueError("Ảnh phải ở định dạng JPEG")
+                    
+                    # Lưu ảnh tạm để sử dụng với process_xray_image và upload
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                        img.save(tmp.name, format="JPEG")
+                        temp_files.append(tmp.name)
+                    
+                    pathologies, gradcam_images = process_xray_image(temp_files[-1])
+                    pathologies_list.append(pathologies)
+                    gradcam_images_list.append(gradcam_images)
+                except Exception as e:
+                    raise RuntimeError(f"Lỗi khi xử lý ảnh: {str(e)}")
+        else:
+            pathologies_list, gradcam_images_list = zip(*processed_xrays)
         
         prompt = """
         Bạn là một AI y tế hỗ trợ bệnh nhân. Dựa trên kết quả phân tích ảnh X-quang và ảnh X-quang gốc (nếu có), thực hiện các bước sau:
@@ -99,12 +112,12 @@ class PatientAI:
 
         Kết quả phân tích ảnh X-quang:
         """
-        for i, (pathologies, gradcam) in enumerate(zip(pathologies_list, gradcam_images_list)):
+        for i, pathologies in enumerate(pathologies_list):
             prompt += f"\nẢnh {i+1}:\n"
             for pathology, prob in pathologies:
                 prompt += f"- {pathology}: Xác suất {prob:.2f}\n"
         
-        if include_symptoms and symptoms:
+        if symptoms:
             prompt += f"\nTriệu chứng từ bệnh nhân: {symptoms}\n"
         
         prompt += "\nTrả lời:"
@@ -145,4 +158,4 @@ class PatientAI:
                     "heatmap_array": heatmap
                 })
         
-        return diagnosis, heatmap_arrays
+        return (diagnosis, heatmap_arrays) if image_bytes_list else diagnosis

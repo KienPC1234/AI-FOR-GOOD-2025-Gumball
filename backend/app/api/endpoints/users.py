@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models, schemas
 from app.api import deps
+from app.extypes import UserRole
 from app.utils.db_wrapper import AsyncDBWrapper
-from app.states import UserRole
 
 
 logger = logging.getLogger(__name__)

@@ -6,7 +6,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict, NoDecode
 
 class Settings(BaseSettings):
     # General
-    GEMINI_API_KEY: str
     BASE_STORAGE_PATH: str
     BASE_USER_STORAGE_PATH: str
     MAX_FILE_UPLOAD_SIZE: int
@@ -21,17 +20,27 @@ class Settings(BaseSettings):
     DATABASE_URL_ASYNC: str
 
     # Security
-    SECRET_KEY: str
     ALGORITHM: str = "HS256"
+    GENERAL_SECRET_KEY: str
+    SECRET_KEY: str
     REFRESH_SECRET_KEY: str            # e.g. set in your .env
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7   # default 7 days
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    GENERAL_TOKEN_EXPIRE_MINUTES: int = 60 * 24       # default 1 day
 
     # Mailjet
     MAILJET_API_KEY: str
     MAILJET_SECRET_KEY: str
     MAILJET_SENDER_EMAIL: EmailStr
     MAILJET_SENDER_NAME: str
+
+    # Celery
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
+    CELERY_RESULT_EXPIRE_SECONDS: int
+
+    # Gemini
+    GEMINI_API_KEY: str
 
     model_config = SettingsConfigDict(
         case_sensitive=True,

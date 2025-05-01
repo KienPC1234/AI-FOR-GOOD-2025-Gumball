@@ -11,11 +11,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import create_engine
 
+import app.middlewares as middlewares
 from app.api.api import api_router
 from app.core.config import settings
 from app.db.base import Base
 from app.models.user import User
-import app.middlewares as middlewares
+from app.extypes import GumballException
 
 
 @asynccontextmanager
@@ -69,6 +70,13 @@ async def pydantic_validation_exception_handler(request, exc: PydanticValidation
         ]
     })
 
+@app.exception_handler(GumballException)
+async def pydantic_validation_exception_handler(request, exc: GumballException):
+    return JSONResponse(status_code=422, content={
+        "detail": "Gumball exception",
+        "message": str(exc)
+    })
+
 
 middlewares.apply_middlewares(app)
 # Include API router
@@ -112,4 +120,4 @@ def root():
 if __name__ == "__main__":
     import uvicorn
     
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, workers=8, reload=True)
