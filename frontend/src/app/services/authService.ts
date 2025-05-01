@@ -9,13 +9,6 @@ const logApiCall = (method: string, endpoint: string, data?: any) => {
   console.log(`API ${method} ${endpoint}`, data || '');
 };
 
-// SHA256 hash
-async function hashPassword(password: string) {
-  const data = new TextEncoder().encode(password);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 // Create axios instance
 const api = axios.create({
   baseURL: API_URL,
@@ -37,10 +30,6 @@ api.interceptors.request.use(
 );
 
 export const loginUser = async (credentials: LoginCredentials): Promise<AuthResponse> => {
-
-  // Hash the password before sending it
-  credentials.password = await hashPassword(credentials.password);
-
   try {
     // Try the standard OAuth2 login endpoint first
     logApiCall('POST', '/auth/login', { email: credentials.email });
@@ -75,10 +64,6 @@ export const loginUser = async (credentials: LoginCredentials): Promise<AuthResp
 };
 
 export const registerUser = async (credentials: RegisterCredentials): Promise<void> => {
-
-  // Hash the password before sending it
-  credentials.password = await hashPassword(credentials.password);
-
   try {
     logApiCall('POST', '/auth/register', { email: credentials.email });
     const response = await api.post('/auth/register', {
