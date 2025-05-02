@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Generator, Any, Iterable
 
-from fastapi import Depends, Header, HTTPException, status, Request, Body
+from fastapi import Depends, Header, HTTPException, status, Request, Body, WebSocket, WebSocketDisconnect
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from pydantic import ValidationError, BaseModel
@@ -21,6 +21,32 @@ def get_db_wrapped(
     """
 
     yield request.state.db
+
+
+async def get_current_user_ws(websocket: WebSocket, db: AsyncDBWrapper) -> models.User:
+    token = websocket.query_params.get("Authorization")
+
+    if token is None:
+        await websocket.close(code=1008)
+        raise WebSocketDisconnect(code=1008)
+
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=settings.ALGORITHM)
+        token_data = schemas.AccessTokenPayload(**payload)
+    except (JWTError, ValidationError):
+        await websocket.close(code=1008)
+        raise WebSocketDisconnect(code=1008)
+
+    user = await db.get_user(token_data.sub)
+    if not user or user.security_stamp != token_data.security_stamp:
+        await websocket.close(code=1008)
+        raise WebSocketDisconnect(code=1008)
+
+    if datetime.now(timezone.utc) > token_data.exp:
+        await websocket.close(code=1008)
+        raise WebSocketDisconnect(code=1008)
+
+    return user
 
 
 async def get_current_user(

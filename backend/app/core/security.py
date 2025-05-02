@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from typing import Any, Optional, Union
-from uuid import uuid4
 
 from jose import jwt
 from passlib.context import CryptContext
@@ -11,6 +10,7 @@ from celery.result import EagerResult
 from app import schemas
 from app.core.config import settings
 from app.models import User
+from app.utils import uuid
 
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -133,8 +133,4 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
     
-def generate_security_stamp() -> str:
-    """
-    Generate a new security stamp.
-    """
-    return uuid4().hex
+generate_security_stamp = uuid

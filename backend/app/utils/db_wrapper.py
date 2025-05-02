@@ -52,7 +52,7 @@ class AsyncDBWrapper:
         query = select(User)
         if filters:
             query = query.filter(*filters)
-        return (await self.execute(query.offset(skip).limit(limit))).scalars()
+        return (await self.execute(query.offset(skip).limit(limit))).scalars().all()
 
     async def is_email_taken(self, email: str, exclude_user_id: Optional[int] = None) -> bool:
         """
@@ -87,7 +87,7 @@ class AsyncDBWrapper:
         """
         Query for users.
         """
-        return (await self._command_query_users(skip, limit, filters, **kwargs)).scalars()
+        return (await self._command_query_users(skip, limit, filters, **kwargs)).scalars().all()
 
     async def user(self, *filters: Any, **kwargs) -> Optional[User]:
         """
@@ -122,7 +122,7 @@ class AsyncDBWrapper:
         if limit:
             query = query.limit(limit)
 
-        return (await self.execute(query)).scalars()
+        return (await self.execute(query)).scalars().all()
 
 
     # PatientDetails-related methods
@@ -161,7 +161,7 @@ class AsyncDBWrapper:
             )
             .offset(skip)
             .limit(limit)
-        )).scalars()
+        )).scalars().all()
 
     async def get_doctors_from_patient_id(
         self, patient_user_id: int, skip: int = 0, limit: int = 100
@@ -193,10 +193,10 @@ class AsyncDBWrapper:
             )
             .offset(skip)
             .limit(limit)
-        )).scalars()
+        )).scalars().all()
         
 
-    async def add_patient_details(self, patient_details: PatientDetails) -> None:
+    async def save_patient_details(self, patient_details: PatientDetails) -> None:
         await self.save_model(patient_details)
 
     async def update_patient_details(self, patient_details: PatientDetails) -> None:
@@ -205,7 +205,7 @@ class AsyncDBWrapper:
 
     # Scan-related methods
 
-    async def get_scan(self, scan_id: int) -> Optional[Scan]:
+    async def get_scan(self, scan_id: str) -> Optional[Scan]:
         """
         Fetch a scan by ID.
         """
@@ -220,9 +220,9 @@ class AsyncDBWrapper:
             .filter(Scan.patient_user_id == patient_user_id)
             .offset(skip)
             .limit(limit)
-        )).scalars()
+        )).scalars().all()
 
-    async def add_scan(self, scan: Scan) -> None:
+    async def save_scan(self, scan: Scan) -> None:
         """
         Add a new scan to the database.
         """
@@ -244,7 +244,7 @@ class AsyncDBWrapper:
 
     # Token-related methods
 
-    async def add_connect_token(self, token: DoctorConnectToken) -> None:
+    async def save_connect_token(self, token: DoctorConnectToken) -> None:
         """
         Add a new connection token to the database.
         """
@@ -446,7 +446,7 @@ class DBWrapper:
         )
         
 
-    def add_patient_details(self, patient_details: PatientDetails) -> None:
+    def save_patient_details(self, patient_details: PatientDetails) -> None:
         self.save_model(patient_details)
 
     def update_patient_details(self, patient_details: PatientDetails) -> None:
@@ -455,7 +455,7 @@ class DBWrapper:
 
     # Scan-related methods
 
-    def get_scan(self, scan_id: int) -> Optional[Scan]:
+    def get_scan(self, scan_id: str) -> Optional[Scan]:
         """
         Fetch a scan by ID.
         """
@@ -473,7 +473,7 @@ class DBWrapper:
             .all()
         )
 
-    def add_scan(self, scan: Scan) -> None:
+    def save_scan(self, scan: Scan) -> None:
         """
         Add a new scan to the database.
         """
@@ -495,7 +495,7 @@ class DBWrapper:
 
     # Token-related methods
 
-    def add_connect_token(self, token: DoctorConnectToken) -> None:
+    def save_connect_token(self, token: DoctorConnectToken) -> None:
         """
         Add a new connection token to the database.
         """

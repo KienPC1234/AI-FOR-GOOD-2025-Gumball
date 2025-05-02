@@ -19,14 +19,13 @@ from app.utils import load_analyzation_output
 EMPTY_PATH = Path("")
 
 # User dir names
-UPLOADED_IMG_DIR = Path("uploaded_images")      # For uploaded xray images, but is not analyzed
-ANALYZED_IMG_DIR = Path("analyzed_images")      # Analyzed xray images moves here
+UPLOADED_IMG_DIR = Path("uploaded_images")      # For uploaded xray images
 ANALYSIS_DIR = Path("analysis")                 # Analysis from AI
 HEATMAP_DIR = Path("heatmap")                   # Heatmaps are saved in a separate directory
 INSPECTION_DIR = Path("inspections")            # Inspections from AI
 DIAGNOSIS_DIR = Path("diagnosis")               # Diagnosis from AI
 TREATMENTS_DIR = Path("treatments")             # Suggested treatments by AI
-USER_DIRS = 'UPLOADED_IMG_DIR', 'ANALYZED_IMG_DIR', 'ANALYSIS_DIR', 'HEATMAP_DIR', 'INSPECTION_DIR', 'DIAGNOSIS_DIR', 'TREATMENTS_DIR'
+USER_DIRS = 'UPLOADED_IMG_DIR', 'ANALYSIS_DIR', 'HEATMAP_DIR', 'INSPECTION_DIR', 'DIAGNOSIS_DIR', 'TREATMENTS_DIR'
 
 
 def _path_supplied(function):
@@ -287,20 +286,12 @@ class UserFolder(Storage):
     
     def read_analysis(self, scan_id: str):
         return load_analyzation_output(self._map_path(f"{scan_id}.h5", self.base_dir / ANALYSIS_DIR))
-
-    def analyzed_image(self, scan_id: str):
-        return self._map_path(f"{scan_id}.jpeg", self.base_dir / ANALYZED_IMG_DIR)
     
-    def uploaded_image(self, name: str):
-        return self._map_path(name, self.base_dir / UPLOADED_IMG_DIR)
+    def uploaded_image(self, name: str, *, ext: bool = False):
+        return self._map_path(name if ext else f"{name}.jpeg", self.base_dir / UPLOADED_IMG_DIR)
 
-    def mark_analyzed_image(self, scan_id: str):
-        analyzed_path = self.analyzed_image(scan_id)
-        self.uploaded_image(f"{scan_id}.jpeg").replace(analyzed_path)
-        return analyzed_path
-
-    def add_scan(self, ext: str, buffer: BufferedIOBase):
-        image_name = self.avail_file_name(ext=ext)
+    def add_scan_image(self, scan_id: str, ext: str, buffer: BufferedIOBase):
+        image_name = scan_id + ext
         self.save_file(buffer, self.uploaded_image(image_name))
         return image_name
 

@@ -1,44 +1,86 @@
+import asyncio
 
 from celery.result import AsyncResult
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import WebSocket, WebSocketDisconnect
 
 import app.schemas as schemas
-from app.celery_app import celery_app
 from app.api import deps
-from app.utils.db_wrapper import AsyncDBWrapper
+from app.celery_app import celery_app
+from app.utils import connect_async_db
+
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, WebSocket] = {}
+
+    async def connect(self, user_id: str, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections[user_id] = websocket
+
+    async def disconnect(self, user_id: str):
+        if user_id in self.active_connections:
+            del self.active_connections[user_id]
+
+    async def send_update(self, user_id: str, data: dict):
+        if websocket := self.active_connections.get(user_id):
+            await websocket.send_json(data)
 
 
 router = APIRouter()
 
+manager = ConnectionManager()
 
-@router.post("/status/")
-async def get_task_status(
-    task_data: schemas.TaskTokenPayload = Depends(deps.get_user_task)
-):
+
+@router.websocket("/status/ws",
+    description="WebSocket endpoint for real-time task status updates")
+async def task_status_websocket(websocket: WebSocket):
     """
-    API endpoint to fetch the status of a Celery task.
+    WebSocket connection for real-time task status updates.
+
+    Provides real-time updates for long-running tasks like scan processing
+    and analysis. The client will receive updates whenever task status changes.
+
+    Message format:
+    {
+        "task_id": "abc123",
+        "status": "COMPLETED|FAILED|IN_PROGRESS",
+        "progress": 85,  # optional
+        "result": {}     # included when completed
+    }
+
+    Parameters:
+        websocket: WebSocket connection
+        token: Valid user authentication token
+
+    Authentication:
+        Requires valid user token in query parameter
+
+    Errors:
+        4003: Invalid authentication
+        4004: Task not found
     """
 
+    db = connect_async_db()
+    user = deps.get_current_user_ws(websocket, db)
+    await db.close()
+
+    await manager.connect(user.id, websocket)
     try:
-        result = AsyncResult(task_data.id, app=celery_app)
-        state = result.state
+        while True:
+            task_token = await websocket.receive_text()
+            task_info = await deps.get_user_task(task_token, user)
 
-        if state == 'PENDING' and not result.ready():
-            return {
-                "status": "pending"
-            }
-        elif state != 'PENDING' and result.ready():
-            return {
-                "status": state.lower()
-            }
-        else:
-            return {
-                "error": "Task not found"
-            }
-    except Exception:
-        return {
-            "error": "Task not found"
-        }
+            result = AsyncResult(task_info.id, app=celery_app)
+            if result.ready():
+                await websocket.send_json({
+                    "status": result.state,
+                    "result": result.result
+                })
+                break
+            await asyncio.sleep(1)  # Avoid busy-waiting
+    except WebSocketDisconnect:
+        await manager.disconnect(user.id)
     
 
 @router.post("/cancel/")
@@ -60,9 +102,9 @@ async def cancel_task(
             }
         else:
             return {
-                "error": "Cannot cancel task"
+                "error": True
             }
     except Exception:
         return {
-            "error": "Cannot cancel task"
+            "error": True
         }

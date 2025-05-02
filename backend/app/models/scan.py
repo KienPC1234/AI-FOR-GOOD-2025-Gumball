@@ -1,19 +1,20 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
-from sqlalchemy.orm import relationship
-from datetime import datetime
+from sqlalchemy.orm import relationship, mapped_column
+
+from app.extypes import IntEnumType, ScanType, ScanStatus
 from app.db.base_class import Base
+from app.utils import utcnow, uuid
 
 
 class Scan(Base):
     __tablename__ = "scans"
 
-    id = Column(Integer, primary_key=True, index=True)
-    scan_type = Column(String, nullable=False) # e.g., "CT Scan", "MRI"
-    scan_date = Column(DateTime, default=datetime.utcnow)
-    image_path = Column(String, nullable=False) # Path to the scan image file
-    status = Column(String, default="Pending") # e.g., "Pending", "Completed", "In Progress"
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id = Column(String, default=uuid, unique=True)
+    index = Column(Integer, primary_key=True, index=True)
+    type = mapped_column(IntEnumType(ScanType), nullable=False)
+    status = mapped_column(IntEnumType(ScanStatus), default=ScanStatus.PREPROCESSING, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     # Foreign key to associate a scan with a Patient User
     patient_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)

@@ -11,8 +11,11 @@ from app.extypes import UserRole
 class UserBase(BaseModel):
     email: Optional[EmailStr] = None
     is_active: Optional[bool] = True
-    is_superuser: bool = False
     role: Optional[UserRole] = None
+
+
+class UserBasic(BaseModel):
+    is_superuser: bool = False
 
 
 # Properties to receive via API on creation
@@ -47,12 +50,12 @@ class UserCreate(BaseModel):
 
 
 # Properties to receive via API on update
-class UserUpdate(UserBase):
+class UserUpdate(UserBasic):
     password: Optional[str] = None
 
 
 # Properties shared by models stored in DB
-class UserInDBBase(UserBase):
+class UserInDBBase(UserBasic):
     id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -65,6 +68,10 @@ class UserInDBBase(UserBase):
 class User(UserInDBBase):
     pass
 
+
+class DoctorUser(UserBase):
+    id: Optional[int] = None
+    
 
 # Properties stored in DB
 class UserInDB(UserInDBBase):

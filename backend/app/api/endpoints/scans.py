@@ -1,46 +1,100 @@
-import logging
-from typing import Any, List
+from typing import List
 
-from fastapi import APIRouter, Body, Depends, HTTPException
-from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import Session
+from celery import chain
+from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File
 
 from app import models, schemas
 from app.api import deps
-from app.utils.db_wrapper import AsyncDBWrapper
-from app.extypes import UserRole
+from app.core.config import settings
+from app.core.security import create_task_token
+from app.core.storage import user_storage, UPLOADED_IMG_DIR
+from app.extypes import UserRole, ScanType, ScanStatus
+from app.tasks import convert_to_jpeg_task, analyze_xray_task
+from app.utils import utcnow, AsyncDBWrapper, get_fext
+from app.utils.async_file import async_save_file
 
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-@router.post("/", response_model=schemas.Scan)
-async def create_scan(
-    scan_in: schemas.ScanCreate,
+@router.post("/", 
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Scan successfully created and processing started",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "task_token": "eyFGHdlskdfjs.sdofhjdsalkfjsdfkeeg.dskgjhsogjdfoijie",
+                        "scan_id": "f8a7gf942lwlf019325kx744iwdkfd9",
+                    }
+                }
+            }
+        },
+        403: {"description": "Only patients can create scans"},
+        415: {"description": "Unsupported image format"}
+    })
+async def create_and_process_scan(
+    image: UploadFile = File(...),
     current_user: models.User = Depends(deps.get_current_active_user),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> models.Scan:
+) -> dict:
     """
-    Create a new scan for the current patient user.
+    Create a new scan and start processing pipeline.
+
+    The image will be:
+    1. Converted to JPEG format
+    2. Analyzed by AI model
+    3. Results stored for retrieval
+
+    Parameters:
+        image: X-ray image file (supported formats: JPEG, PNG)
+        current_user: Authenticated patient user
+        db: Database connection
+
+    Returns:
+        Dictionary containing:
+        - scan_id: Unique identifier for the scan
+        - task_id: ID to track processing status
+        - status: Current status of the scan
+
+    Raises:
+        403: If user is not a patient
+        415: If image format is not supported
     """
-    # Ensure the current user is a patient
+    
     if current_user.role != UserRole.PATIENT:
         raise HTTPException(status_code=403, detail="Only patients can create scans")
+    
+    user_folder = user_storage.dir_of(current_user.id)
+    img_ext = get_fext(image.filename)
 
-    # Create the scan linked to the current patient user
+    if img_ext not in settings.IMAGE_FILE_ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=415, detail="Unsupported image format")
+
+    # Create the scan record
     scan = models.Scan(
-        scan_type=scan_in.scan_type,
-        image_path=scan_in.image_path,
-        status=scan_in.status,
-        patient_user_id=current_user.id, # Link scan to the patient user
+        type=ScanType.XRAY,
+        patient_user_id=current_user.id,
+        status=ScanStatus.PREPROCESSING,
     )
 
-    await db.add_scan(scan)
+    # Save the uploaded image asynchronously
+    image_path = await async_save_file(user_folder.abs_of(UPLOADED_IMG_DIR), image, scan.id + img_ext)
 
-    logger.info(f"Patient user {current_user.email} created a new scan (ID: {scan.id})")
+    await db.save_scan(scan)
 
-    return scan
+    # Trigger the Celery task chain: convert_to_jpeg_task -> analyze_xray_task
+    task_chain = chain(
+        convert_to_jpeg_task.s(current_user.id, scan.id, img_ext),
+        analyze_xray_task.s(current_user.id, scan.id)
+    )
+    task_result = task_chain.apply_async()
+
+    return {
+        "task_token": create_task_token(current_user, task_result),
+        "scan_id": scan.id,
+    }
 
 
 @router.get("/{scan_id}", response_model=schemas.Scan)

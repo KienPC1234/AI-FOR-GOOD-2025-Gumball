@@ -183,15 +183,52 @@ async def get_doctors_for_patient_user(
     return doctors
 
 
-@router.post("/connect-doctor/{connect_token}", response_model=schemas.User)
+@router.post("/connect-doctor/{connect_token}", 
+    response_model=schemas.DoctorUser,
+    responses={
+        200: {
+            "description": "Successfully connected to doctor",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 456,
+                        "email": "doctor@hospital.com",
+                        "role": "DOCTOR",
+                        "name": "Dr. Smith"
+                    }
+                }
+            }
+        },
+        403: {"description": "Only patients can connect to doctors"},
+        404: {"description": "Invalid token or doctor not found"},
+        400: {"description": "Token expired or already used"}
+    })
 async def connect_to_doctor(
     connect_token: str,
     current_user: models.User = Depends(deps.get_current_active_user),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
 ) -> models.User:
     """
-    Connect the current patient user to a doctor using a connect token.
+    Connect a patient to a doctor using a connection token.
+
+    This endpoint allows patients to establish a connection with a doctor
+    using a token provided by the doctor. Once connected, the doctor
+    can access the patient's scans and provide analysis.
+
+    Parameters:
+        connect_token: Token received from doctor
+        current_user: Must be an authenticated patient
+        db: Database connection
+
+    Returns:
+        Doctor user object that patient is now connected to
+
+    Raises:
+        403: If current user is not a patient
+        404: If token or doctor is invalid
+        400: If token has expired or was already used
     """
+    
     if current_user.role != UserRole.PATIENT:
         raise HTTPException(status_code=403, detail="Only patients can connect to doctors")
 
@@ -247,7 +284,7 @@ async def create_connect_token(
         doctor_id=current_user.id,
     )
 
-    await db.add_connect_token(connect_token)
+    await db.save_connect_token(connect_token)
 
     return connect_token
 

@@ -57,17 +57,49 @@ async def login_access_token(
     }
 
 
-@router.post("/register", response_model=schemas.User)
+@router.post("/register", 
+    response_model=schemas.User,
+    responses={
+        200: {
+            "description": "User successfully registered",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "email": "user@example.com",
+                        "is_active": True,
+                        "is_superuser": False,
+                        "role": "PATIENT",
+                        "id": 123,
+                        "created_at": "1900-01-01 01:01:01.1",
+                        "updated_at": "1900-01-01 01:01:01.1"
+                    }
+                }
+            }
+        },
+        400: {"description": "Email already registered"}
+    })
 async def register_user(
     *,
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
     user_in: schemas.UserCreate,
 ) -> Any:
     """
-    Register a new user.
-    """
-    # Check if user with this email already exists
+    Register a new user in the system.
+
+    Parameters:
+        user_in: User creation data including:
+            - email: Valid email address
+            - password: Strong password (min 8 chars)
+            - role: Either PATIENT or DOCTOR
+
+    Returns:
+        The created user object
     
+    Raises:
+        400: If email is already registered
+    """
+
+    # Check if user with this email already exists
     if await db.is_email_taken(user_in.email):
         raise HTTPException(
             status_code=400,

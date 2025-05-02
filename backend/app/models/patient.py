@@ -1,7 +1,9 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
+
 from app.db.base_class import Base
+from app.utils import utcnow
 
 
 class PatientDetails(Base):
@@ -13,8 +15,8 @@ class PatientDetails(Base):
     gender = Column(String, nullable=False)  # e.g., "male", "female", "other"
     diagnosis = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Foreign key to associate patient details with a Patient User
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)

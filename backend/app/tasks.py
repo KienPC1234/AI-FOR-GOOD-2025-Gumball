@@ -1,4 +1,4 @@
-import os, json
+import io, os, json
 from os import PathLike
 from pathlib import Path
 from typing import Callable, Any, Optional, List, Tuple
@@ -8,9 +8,10 @@ from PIL import Image
 
 from app.core.email import send_email
 from app.core.storage import user_storage
-from app.extypes import ImageProcessingError, AITaskException, AIInspectionType
-from app.models import User
-from app.utils import change_ext, save_analyzation_output, load_analyzation_output
+from app.extypes import ImageProcessingError, AITaskException, AIInspectionType, ScanStatus
+from app.models import User, Scan
+from app.utils import change_fext, save_analyzation_output, load_analyzation_output, connect_db, connect_async_db
+from app.utils.async_file import async_read_file, async_save_file, async_delete_file
 from ...AFG_Gumball.xray_processing import process_xray_image
 from ...AFG_Gumball.medical_ai import XrayAnalysisExpertAI, PatientAI, DoctorDiagnosticAI, DoctorEnhanceAI
 
@@ -37,46 +38,78 @@ def send_email_task(email_to: str, subject: str, html_content: str) -> None:
     
 
 @shared_task(name="app.tasks.convert_to_jpeg")
-def convert_to_jpeg_task(user: User, img_name: str) -> str:
+async def convert_to_jpeg_task(user_id: int, scan_id: int, img_ext: str) -> str:
     """
-    Converts an image to JPEG format.
+    Converts an image to JPEG format asynchronously.
+
+    Args:
+        user_id (int): ID of the user who owns the scan.
+        scan_id (int): ID of the scan to be converted.
+        img_ext (str): Extension of the original image file.
+
+    Returns:
+        str: Path to the converted JPEG image.
+
+    Raises:
+        ImageProcessingError: If the image conversion fails.
     """
-    user_dir = user_storage.dir_of(user.id)
-    img_path = user_dir.uploaded_image(img_name)
-    scan_id = os.path.splitext(img_path.name)[1]
+    db = connect_async_db()
+
+    # Fetch the scan from the database
+    scan = await db.get_scan(scan_id)
+    if scan.status != ScanStatus.PREPROCESSING:
+        raise ImageProcessingError("The scan's image has already been processed")
+
+    user_dir = user_storage.dir_of(user_id)
+    img_path = user_dir.uploaded_image(scan_id + img_ext, ext=True)
+    jpeg_path = user_dir.uploaded_image(scan_id)
 
     try:
-        img = Image.open(img_path)
-        
-        jpeg_path = change_ext(img_path, ".jpeg")
-        img.convert("L").save(jpeg_path, "JPEG")
-        
-        return scan_id
+        # Read the image asynchronously
+        image_data = await async_read_file(img_path)
+
+        # Convert the image to grayscale and save as JPEG
+        with Image.open(io.BytesIO(image_data)) as img:
+            img = img.convert("L")  # Convert to grayscale
+            output = io.BytesIO()
+            img.save(output, format="JPEG")
+            output.seek(0)
+
+            # Save the converted image asynchronously
+            await async_save_file(jpeg_path, output.read())
+
+        # Update scan status
+        scan.status = ScanStatus.PREPROCESSED
+        await db.save_model(scan)
+
+        return str(jpeg_path)
     except Exception as e:
         raise ImageProcessingError("Error converting image to JPEG") from e
     finally:
-        img_path.unlink(missing_ok=True)
+        # Clean up the original image file
+        await async_delete_file(img_path)
     
 
 @shared_task(name="app.tasks.analyze_xray")
-def analyze_xray_task(user: User, scan_id: str):
+async def analyze_xray_task(user_id: int, scan_id: int, jpeg_path: str):
     """
-    Analyzes a grayscale X-ray image for pathologies then save details into a file.
+    Analyze the converted JPEG X-ray image.
     """
-    user_folder = user_storage.dir_of(user.id)
+    user_folder = user_storage.dir_of(user_id)
+    analysis_path = user_folder.new_analysis_name(scan_id)
 
-    try:
-        img_path = user_folder.analyzed_image(scan_id)
-        
-        pathologies, gradcam_images = process_xray_image(img_path)
-        save_path = user_folder.new_analysis_name(scan_id)
+    pathologies, gradcam_images = process_xray_image(jpeg_path)
 
-        # Will separate heatmap soon to optimize performance
-        save_analyzation_output(save_path, pathologies, gradcam_images)
-        return scan_id
-    except Exception as e:
-        img_path.unlink() # Remove image if errored
-        raise ImageProcessingError("Error analyzing X-ray image") from e
+    # Save the analysis results
+    save_analyzation_output(analysis_path, pathologies, gradcam_images)
+
+    # Update scan status in the database
+    db = connect_async_db()
+    scan = await db.get_scan(scan_id)
+    scan.status = ScanStatus.ANALYZED
+    await db.save_model(scan)
+
+    return {"scan_id": scan_id, "status": "analyzed"}
 
 
 @shared_task(name="app.tasks.expert_analysis")
@@ -94,7 +127,7 @@ def expert_ai_xray_analysis_task(
 
         ai_expert = XrayAnalysisExpertAI()
         suggestions = ai_expert.analyze_xray(
-            image_paths=(user_folder.analyzed_image(scan_id),),
+            image_paths=(user_folder.uploaded_image(scan_id),),
             symptoms=symptoms,
         )
 
