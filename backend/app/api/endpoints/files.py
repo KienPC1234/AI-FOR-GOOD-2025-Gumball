@@ -12,14 +12,37 @@ router = APIRouter()
 
 
 
-@router.get("/images/{scan_id}", response_model=BufferedIOBase)
+@router.get("/images/{scan_id}",
+    responses={
+        200: {
+            "description": "Login successfully",
+            "content": {
+                "image/jpeg": {
+                    "example": "<some-image>"
+                }
+            }
+        },
+        404: {"description": "File not found"},
+        500: {"description": "Failed to get image content"}
+    })
 def get_image(
     scan_id: str,
     current_user: models.User = Depends(deps.get_current_active_user),
-) -> dict:
+):
     """
-    Retrieve processed images.
+    Retrieve an image.
+
+    Parameters:
+        scan_id: The scan's ID
+
+    Returns:
+        Stream: The image stream
+    
+    Raises:
+        404: If file not found
+        500: If failed to get image
     """
+
     try:
         user_folder = user_storage.dir_of(current_user.id)
         image_path = user_folder.uploaded_image(scan_id)

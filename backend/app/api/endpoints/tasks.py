@@ -1,8 +1,8 @@
 import asyncio
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 
 import app.schemas as schemas
 from app.api import deps
@@ -83,12 +83,45 @@ async def task_status_websocket(websocket: WebSocket):
         await manager.disconnect(user.id)
     
 
-@router.post("/cancel/")
+@router.post("/cancel/", 
+    response_model=dict,
+    responses={
+        500: {
+            "description": "Failed to cancel a task",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True
+                    }
+                }
+            }
+        },
+        200: {
+            "description": "Successfully cancelled a task",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "cancelled",
+                        "error": None
+                    }
+                }
+            }
+        },
+    })
 async def cancel_task(
     task_data: schemas.TaskTokenPayload = Depends(deps.get_user_task)
 ):
     """
-    API endpoint to fetch the status of a Celery task.
+    Cancel a running task.
+
+    Parameters:
+        None
+
+    Returns:
+        The created user object
+    
+    Raises:
+        400: If the task couldn't be cancelled
     """
 
     try:
@@ -101,10 +134,16 @@ async def cancel_task(
                 "error": None
             }
         else:
-            return {
-                "error": True
-            }
+            return JSONResponse(
+                {
+                    "error": True
+                },
+                status_code=400
+            )
     except Exception:
-        return {
-            "error": True
-        }
+        return JSONResponse(
+            {
+                "error": True
+            },
+            status_code=400
+        )    

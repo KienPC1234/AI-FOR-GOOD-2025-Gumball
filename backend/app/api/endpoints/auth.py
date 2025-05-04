@@ -32,13 +32,42 @@ class EmailPasswordForm:
 router = APIRouter()
 
 
-@router.post("/login", response_model=schemas.Token)
+@router.post("/login", 
+    response_model=schemas.Token,
+    responses={
+        200: {
+            "description": "Login successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                        "refresh_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                        "token_type": "bearer",
+                    }
+                }
+            }
+        },
+        400: {"description": "Incorrect credentials or user inactive"}
+    })
 async def login_access_token(
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped), form_data: EmailPasswordForm = Depends()
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
-    Use your email and password to login.
+
+    Parameters:
+        form_data: User OAuth2 form data:
+            - email: User's email
+            - password: User's password
+
+    Returns:
+        Object:
+            - access_token: JWT access token
+            - refresh_token: JWT refresh token
+            - token_type: `bearer`
+    
+    Raises:
+        400: If incorrect credentials or user inactive
     """
     # Authenticate with email only
     user = await db.get_user_by_email(form_data.email)
@@ -121,10 +150,29 @@ async def register_user(
     return user
 
 
-@router.post("/test-token", response_model=schemas.User)
+@router.post("/test-token", 
+    response_model=schemas.User,
+    responses={
+        200: {
+            "description": "Retrieved user data",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "email": "user@example.com",
+                        "is_active": True,
+                        "is_superuser": False,
+                        "role": "PATIENT",
+                        "id": 123,
+                        "created_at": "1900-01-01 01:01:01.1",
+                        "updated_at": "1900-01-01 01:01:01.1"
+                    }
+                }
+            }
+        }
+    })
 def test_token(current_user: models.User = Depends(deps.get_current_user)) -> Any:
     """
-    Test access token.
+    Returns the current user.
     """
     return current_user
 
@@ -134,6 +182,23 @@ class LoginRequest(BaseModel):
     password: str
 
 
+@router.post("/login", 
+    response_model=schemas.Token,
+    responses={
+        200: {
+            "description": "Login successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                        "refresh_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                        "token_type": "bearer",
+                    }
+                }
+            }
+        },
+        400: {"description": "Incorrect credentials or user inactive"}
+    })
 @router.post("/login-simple", response_model=schemas.Token)
 async def login_simple(
     *,
@@ -142,6 +207,20 @@ async def login_simple(
 ) -> Any:
     """
     Simple login endpoint that doesn't use OAuth2 form.
+
+    Parameters:
+        json: User credentials:
+            - email: User's email
+            - password: User's password
+
+    Returns:
+        Object:
+            - access_token: JWT access token
+            - refresh_token: JWT refresh token
+            - token_type: `bearer`
+    
+    Raises:
+        400: If incorrect credentials or user inactive
     """
     # Authenticate with email only
     user = await db.get_user_by_email(login_data.email)
@@ -159,7 +238,22 @@ async def login_simple(
     }
 
 
-@router.post("/refresh-token", response_model=schemas.AccessToken)
+@router.post("/refresh-token",
+    response_model=schemas.AccessToken,
+    responses={
+        200: {
+            "description": "Access token refreshed successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                        "token_type": "bearer",
+                    }
+                }
+            }
+        },
+        401: {"description": "Refresh token invalidated or expired"}
+    })
 def refresh_access_token(
     refresh_token: schemas.RefreshTokenPayload = Depends(deps.revalidate_with_refresh_token),
     current_user: models.User = Depends(deps.get_current_active_user)

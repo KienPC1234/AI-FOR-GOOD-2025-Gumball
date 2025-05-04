@@ -69,7 +69,7 @@ class User(UserInDBBase):
     pass
 
 
-class DoctorUser(UserBase):
+class UserInfo(UserBase):
     id: Optional[int] = None
     
 
