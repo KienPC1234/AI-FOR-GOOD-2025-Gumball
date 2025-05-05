@@ -1,4 +1,3 @@
-import logging
 from typing import Any, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -11,12 +10,30 @@ from app.extypes import UserRole
 from app.utils.db_wrapper import AsyncDBWrapper
 
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter()
 
 
-@router.get("/", response_model=List[schemas.User])
+@router.get("/",
+        response_model=List[schemas.User],
+        responses={
+        200: {
+            "description": "Read successfully",
+            "content": {
+                "application/json": {
+                    "example": [{
+                        "email": "user@example.com",
+                        "is_active": True,
+                        "is_superuser": False,
+                        "role": "PATIENT",
+                        "id": 123,
+                        "created_at": "1900-01-01 01:01:01.1",
+                        "updated_at": "1900-01-01 01:01:01.1"
+                    }]
+                }
+            }
+        },
+        403: {"description": "Insufficient privileges"},
+    })
 async def read_users(
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
     skip: int = 0,
@@ -41,7 +58,26 @@ async def read_users(
     )
 
 
-@router.get("/me", response_model=schemas.User)
+@router.get("/me",
+        response_model=schemas.User,
+        responses={
+        200: {
+            "description": "Retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "email": "user@example.com",
+                        "is_active": True,
+                        "is_superuser": False,
+                        "role": "PATIENT",
+                        "id": 123,
+                        "created_at": "1900-01-01 01:01:01.1",
+                        "updated_at": "1900-01-01 01:01:01.1"
+                    }
+                }
+            }
+        },
+    })
 def read_user_me(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
@@ -51,7 +87,26 @@ def read_user_me(
     return current_user
 
 
-@router.put("/me", response_model=schemas.User)
+@router.put("/me",
+        response_model=schemas.User,
+        responses={
+        200: {
+            "description": "Updated successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "email": "user@example.com",
+                        "is_active": True,
+                        "is_superuser": False,
+                        "role": "PATIENT",
+                        "id": 123,
+                        "created_at": "1900-01-01 01:01:01.1",
+                        "updated_at": "1900-01-01 01:01:01.1"
+                    }
+                }
+            }
+        },
+    })
 async def update_user_me(
     *,
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
@@ -72,11 +127,30 @@ async def update_user_me(
         current_user.update_password(password)
 
     await db.save_user(current_user)
-    logger.info(f"User {current_user.email} updated their profile")
+    
     return current_user
 
 
-@router.get("/{user_id}", response_model=schemas.User)
+@router.get("/{user_id}",
+        response_model=schemas.User,
+        responses={
+        200: {
+            "description": "Retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "email": "user@example.com",
+                        "is_active": True,
+                        "is_superuser": False,
+                        "role": "PATIENT",
+                        "id": 123,
+                        "created_at": "1900-01-01 01:01:01.1",
+                        "updated_at": "1900-01-01 01:01:01.1"
+                    }
+                }
+            }
+        },
+    })
 async def read_user_by_id(
     user_id: int,
     current_user: models.User = Depends(deps.get_current_active_user),
@@ -97,7 +171,20 @@ async def read_user_by_id(
     raise HTTPException(status_code=403, detail="Insufficient privileges")
 
 
-@router.delete("/{user_id}", response_model=dict)
+@router.delete("/{user_id}",
+        response_model=dict,
+        responses={
+        200: {
+            "description": "User deleted successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "User deleted successfully"
+                    }
+                }
+            }
+        },
+    })
 async def delete_user(
     user_id: int,
     current_user: models.User = Depends(deps.get_current_active_superuser),
@@ -118,11 +205,24 @@ async def delete_user(
         raise HTTPException(status_code=403, detail="Cannot delete a superuser")
 
     await db.soft_delete_user(user)
-    logger.info(f"Superuser {current_user.email} deleted user {user.email}")
+    
     return {"message": "User deleted successfully"}
 
 
-@router.post("/{user_id}/restore", response_model=dict)
+@router.post("/{user_id}/restore",
+        response_model=dict,
+        responses={
+        200: {
+            "description": "User restored successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "User restored successfully"
+                    }
+                }
+            }
+        },
+    })
 async def restore_user(
     user_id: int,
     current_user: models.User = Depends(deps.get_current_active_superuser),
@@ -143,4 +243,5 @@ async def restore_user(
         raise HTTPException(status_code=400, detail="User is not deleted")
 
     await db.restore_user(user)
+
     return {"message": "User restored successfully"}

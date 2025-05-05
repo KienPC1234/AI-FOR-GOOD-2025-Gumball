@@ -14,7 +14,8 @@ class UserBase(BaseModel):
     role: Optional[UserRole] = None
 
 
-class UserBasic(BaseModel):
+class UserBasic(UserBase):
+    id: Optional[int] = None
     is_superuser: bool = False
 
 
@@ -69,8 +70,9 @@ class User(UserInDBBase):
     pass
 
 
-class UserInfo(UserBase):
-    id: Optional[int] = None
+# Properties display to public clients
+class UserPublicInfo(UserBase):
+    pass
     
 
 # Properties stored in DB

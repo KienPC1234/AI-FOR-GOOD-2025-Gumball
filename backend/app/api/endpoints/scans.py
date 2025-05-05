@@ -25,8 +25,8 @@ router = APIRouter()
             "content": {
                 "application/json": {
                     "example": {
-                        "task_token": "eyFGHdlskdfjs.sdofhjdsalkfjsdfkeeg.dskgjhsogjdfoijie",
-                        "scan_id": "f8a7gf942lwlf019325kx744iwdkfd9",
+                        "task_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                        "scan_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                     }
                 }
             }
@@ -97,7 +97,25 @@ async def create_and_process_scan(
     }
 
 
-@router.get("/{scan_id}", response_model=schemas.Scan)
+@router.get("/{scan_id}",
+        response_model=schemas.Scan,
+        responses={
+        200: {
+            "description": "Retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "xxxxxxxxxxxxxxxxxxxxxx",
+                        "type": "XRAY",
+                        "status": "ANALYZED",
+                        "patient_user_id": 123,
+                        "created_at": "2025-05-02T15:00:00Z",
+                        "updated_at": "2025-05-02T15:00:00Z",
+                    }
+                }
+            }
+        },
+    })
 async def get_scan(
     scan_id: int,
     current_user: models.User = Depends(deps.get_current_active_user),
@@ -121,7 +139,25 @@ async def get_scan(
     return scan
 
 
-@router.get("/patient/{patient_user_id}", response_model=List[schemas.Scan])
+@router.get("/patient/{patient_user_id}",
+        response_model=List[schemas.Scan],
+        responses={
+        200: {
+            "description": "Retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": [{
+                        "id": "xxxxxxxxxxxxxxxxxxxxxx",
+                        "type": "XRAY",
+                        "status": "ANALYZED",
+                        "patient_user_id": 123,
+                        "created_at": "2025-05-02T15:00:00Z",
+                        "updated_at": "2025-05-02T15:00:00Z",
+                    }]
+                }
+            }
+        },
+    })
 async def get_scans_for_patient(
     patient_user_id: int,
     skip: int = 0,

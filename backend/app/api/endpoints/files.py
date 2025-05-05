@@ -13,6 +13,7 @@ router = APIRouter()
 
 
 @router.get("/images/{scan_id}",
+    response_model=StreamingResponse,
     responses={
         200: {
             "description": "Login successfully",

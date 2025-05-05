@@ -19,7 +19,7 @@ router = APIRouter()
 
 
 @router.get("/", 
-    response_model=List[schemas.UserInfo],
+    response_model=List[schemas.UserPublicInfo],
     responses={
         200: {
             "description": "List of patients retrieved successfully",
@@ -27,7 +27,6 @@ router = APIRouter()
                 "application/json": {
                     "example": [{
                         "id": 123,
-                        "email": "patient@example.com",
                         "role": "PATIENT",
                         "is_active": True,
                     }]
@@ -61,98 +60,6 @@ async def get_patients_for_doctor(
         raise HTTPException(status_code=403, detail="Only doctors can access this endpoint")
 
     return await db.get_patients_from_doctor_id(current_user.id, skip=skip, limit=limit)
-
-
-@router.post("/", 
-    response_model=schemas.UserInfo,
-    responses={
-        200: {
-            "description": "Patient successfully created",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "id": 123,
-                        "email": "newpatient@example.com",
-                        "role": "PATIENT",
-                        "is_active": True,
-                    }
-                }
-            }
-        },
-        400: {"description": "Email already exists or invalid role"},
-        403: {"description": "User is not a doctor"}
-    })
-async def add_patient_user(
-    patient_in: schemas.PatientDetailsCreate,
-    patient_user_in: schemas.UserCreate,
-    current_user: models.User = Depends(deps.get_current_active_user),
-    db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> models.User:
-    """
-    Create a new patient user and associate them with the current doctor.
-
-    Parameters:
-        patient_in: Patient details including:
-            - name: Full name
-            - age: Patient's age
-            - gender: Patient's gender
-            - diagnosis: Initial diagnosis
-        patient_user_in: User account details including:
-            - email: Valid email address
-            - password: Secure password
-            - role: Must be 'PATIENT'
-        current_user: Must be an authenticated doctor
-        db: Database connection wrapper
-
-    Returns:
-        Created patient user object with details
-
-    Raises:
-        400: If email exists or role is not PATIENT
-        403: If current user is not a doctor
-    """
-    if current_user.role is not UserRole.DOCTOR:
-        raise HTTPException(status_code=403, detail="Only doctors can add patients")
-
-    # Check if a user with the provided email already exists
-    existing_user = await db.get_user_by_email(patient_user_in.email)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="User with this email already exists")
-
-    # Create the new patient user
-    # Ensure the role is set to PATIENT
-    if patient_user_in.role is not UserRole.PATIENT:
-         raise HTTPException(status_code=400, detail="New user must have 'patient' role")
-
-    patient_user = models.User(
-        email=patient_user_in.email,
-        hashed_password=get_password_hash(patient_user_in.password),
-        role=UserRole.PATIENT,
-        security_stamp=generate_security_stamp(),
-    )
-
-    # Create the patient details linked to the new patient user
-    patient_details = models.PatientDetails(
-        name=patient_in.name,
-        age=patient_in.age,
-        gender=patient_in.gender,
-        diagnosis=patient_in.diagnosis,
-        user=patient_user,
-    )
-
-    # Add the new user and patient details
-    db.add(patient_user)
-    db.add(patient_details)
-
-    # Link the doctor user to the patient user via the association table
-    current_user.doctor_patients.append(patient_user)
-
-    await db.commit()
-    await db.refresh(patient_user)
-
-    logger.info(f"Doctor {current_user.email} added new patient user {patient_user.email}")
-
-    return patient_user
 
 
 @router.put("/{patient_user_id}", 
@@ -286,7 +193,7 @@ async def unlink_patient_user(
 
 
 @router.get("/{patient_user_id}/doctors", 
-    response_model=List[schemas.UserInfo],
+    response_model=List[schemas.UserPublicInfo],
     responses={
         200: {
             "description": "List of doctors retrieved successfully",
@@ -294,9 +201,9 @@ async def unlink_patient_user(
                 "application/json": {
                     "example": [{
                         "id": 456,
-                        "email": "doctor@hospital.com",
                         "role": "DOCTOR",
-                        "name": "Dr. Smith"
+                        "is_active": True,
+                        "email": "doctor@example.com"
                     }]
                 }
             }
@@ -333,7 +240,7 @@ async def get_doctors_for_patient_user(
 
 
 @router.post("/connect-doctor/{connect_token}", 
-    response_model=schemas.UserInfo,
+    response_model=schemas.UserPublicInfo,
     responses={
         200: {
             "description": "Successfully connected to doctor",
@@ -341,9 +248,9 @@ async def get_doctors_for_patient_user(
                 "application/json": {
                     "example": {
                         "id": 456,
-                        "email": "doctor@hospital.com",
                         "role": "DOCTOR",
-                        "name": "Dr. Smith"
+                        "is_active": True,
+                        "email": "doctor@example.com"
                     }
                 }
             }

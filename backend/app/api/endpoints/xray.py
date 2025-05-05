@@ -28,7 +28,7 @@ router = APIRouter()
             "content": {
                 "application/json": {
                     "example": {
-                        "task_token": "eyGhMLdoimn239JNFlsdkjf.sdoigfhosa399ugis.49hFKDFhosh38zJJDH"
+                        "task_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                     }
                 }
             }
@@ -57,8 +57,7 @@ async def friendly_suggest_treatment(
         - Analysis task token
 
     Raises:
-        404: If scan not found
-        422: If symptoms description is invalid
+        400: If invalid scan
     """
 
     if not user_storage.dir_of(current_user.id).analysis(scan_id).exists():
@@ -71,24 +70,50 @@ async def friendly_suggest_treatment(
     }
 
 
-@router.post("/expert-analysis")
+@router.post("/expert-analysis",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Analysis queued",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "task_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid scan ID"}
+    })
 async def expert_suggest_treatment(
     current_user: User = Depends(deps.get_current_active_user),
-    analyze_task: schemas.TaskTokenPayload = Depends(deps.get_validated_task("app.tasks.analyze_xray")),
+    scan_id: str = Body(..., embed=True),
     symptoms: str = Body(..., embed=True),
 ):
     """
-    Endpoint to provide treatment suggestions based on X-ray analysis and symptoms.
+    Get AI-powered treatment suggestions in expert mode.
+
+    This endpoint uses a specialized AI model trained to explain medical
+    findings in depth, suitable for expert to boost up analysis speed.
+
+    Parameters:
+        current_user: Authenticated user (patient or doctor)
+        scan_id: ID of the processed X-ray scan
+        symptoms: Description of patient's symptoms
+
+    Returns:
+        Object:
+        - Analysis task token
+
+    Raises:
+        400: If invalid scan
     """
-    # Fetch the X-ray analysis results
-    analysis_result = AsyncResult(analyze_task.id, app=celery_app)
-    if not analysis_result.ready():
-        raise HTTPException(status_code=400, detail="X-ray analyzation in progress")
-    elif analysis_result.state != 'SUCCESS':
-        raise HTTPException(status_code=400, detail="X-ray analyzation failed")
+
+    if not user_storage.dir_of(current_user.id).analysis(scan_id).exists():
+        raise HTTPException(status_code=400, detail="Invalid scan ID")
 
     # Use AI to provide treatment suggestions
-    ai_task = expert_ai_xray_analysis_task.delay(analysis_result.result, symptoms)
+    ai_task = expert_ai_xray_analysis_task.delay(current_user, scan_id, symptoms)
     return {
         "task_token": create_task_token(current_user, ai_task)
     }

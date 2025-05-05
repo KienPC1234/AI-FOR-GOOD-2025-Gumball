@@ -22,7 +22,6 @@ class ScanUpdate(ScanBase):
 
 class Scan(ScanBase):
     patient_user_id: int
-    scan_date: datetime
     created_at: datetime
     updated_at: datetime
 
