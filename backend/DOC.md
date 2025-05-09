@@ -1,190 +1,474 @@
-Documentation for endpoints:
+# API Documentation
+
+## Authentication Endpoints (`/auth`)
+
+### 1. Login (`POST /auth/login`)
+Authenticate a user and obtain access/refresh tokens.
+
+**Request Body (Form Data):**
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "refresh_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "token_type": "bearer"
+  }
+}
+```
+
+### 2. Register (`POST /auth/register`)
+Register a new user in the system.
+
+**Request Body:**
+```json
+{
+  "email": "string",
+  "password": "string",
+  "role": "PATIENT|DOCTOR"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "email": "user@example.com",
+    "is_active": true,
+    "is_superuser": false,
+    "role": "PATIENT",
+    "id": 123,
+    "created_at": "2025-05-08T10:00:00Z",
+    "updated_at": "2025-05-08T10:00:00Z"
+  }
+}
+```
+
+### 3. Refresh Token (`POST /auth/refresh-token`)
+Obtain a new access token using a refresh token.
+
+**Request Headers:**
+- `Authorization`: Bearer {refresh_token}
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "token_type": "bearer"
+  }
+}
+```
 
 ---
 
-## **Authentication Endpoints (`/auth`)**
+## User Endpoints (users)
 
-### **1. `/auth/register`**
-- **Method**: `POST`
-- **Description**: Registers a new user.
-- **Parameters**:
-  - `email` (string): User's email.
-  - `password` (string): User's password.
-  - `role` (string): User's role (`PATIENT`, `DOCTOR`).
-- **Response**: User object.
-- **Example**:
-  ```bash
-  curl -X POST "http://localhost:8000/api/auth/register" -d '{"email": "user@example.com", "password": "pass", "role": "PATIENT"}'
-  ```
+### 1. Get Current User (`GET /users/me`)
+Retrieve the currently authenticated user's details.
 
-### **2. `/auth/login`**
-- **Method**: `POST`
-- **Description**: Logs in a user and returns tokens.
-- **Parameters**:
-  - `email` (string): User's email.
-  - `password` (string): User's password.
-- **Response**: Access and refresh tokens.
-- **Example**:
-  ```bash
-  curl -X POST "http://localhost:8000/api/auth/login" -d '{"email": "user@example.com", "password": "pass"}'
-  ```
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "email": "user@example.com",
+    "is_active": true,
+    "is_superuser": false,
+    "role": "PATIENT",
+    "id": 123,
+    "created_at": "2025-05-08T10:00:00Z",
+    "updated_at": "2025-05-08T10:00:00Z"
+  }
+}
+```
 
-### **3. `/auth/refresh-token`**
-- **Method**: `POST`
-- **Description**: Refreshes the access token.
-- **Parameters**:
-  - `refresh_token` (string): Refresh token.
-- **Response**: New access token.
-- **Example**:
-  ```bash
-  curl -X POST "http://localhost:8000/api/auth/refresh-token" -H "Authorization: Bearer <refresh_token>"
-  ```
+### 2. Update Current User (`PUT /users/me`)
+Update the current user's details.
 
----
+**Request Body:**
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
 
-## **User Endpoints (users)**
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "email": "updated@example.com",
+    "is_active": true,
+    "role": "PATIENT",
+    "id": 123
+  }
+}
+```
 
-### **1. `/users/me`**
-- **Method**: `GET`
-- **Description**: Retrieves the current user's details.
-- **Response**: User object.
-- **Example**:
-  ```bash
-  curl -X GET "http://localhost:8000/api/users/me" -H "Authorization: Bearer <access_token>"
-  ```
+### 3. List Users (`GET /users/`)
+List all users (superuser only).
 
-### **2. users**
-- **Method**: `GET`
-- **Description**: Retrieves a list of users (superuser only).
-- **Parameters**:
-  - `skip` (int): Records to skip.
-  - `limit` (int): Max records to return.
-  - `role` (string): Filter by role.
-  - `is_active` (bool): Filter by active status.
-- **Response**: List of users.
-- **Example**:
-  ```bash
-  curl -X GET "http://localhost:8000/api/users/?role=DOCTOR" -H "Authorization: Bearer <access_token>"
-  ```
+**Query Parameters:**
+- `skip`: int (default: 0)
+- `limit`: int (default: 100)
+- `role`: string (optional)
+- `is_active`: boolean (optional)
 
----
-
-## **Patient Endpoints (`/patients`)**
-
-### **1. `/patients/`**
-- **Method**: `GET`
-- **Description**: Retrieves patients associated with the current doctor.
-- **Parameters**:
-  - `skip` (int): Records to skip.
-  - `limit` (int): Max records to return.
-- **Response**: List of patients.
-- **Example**:
-  ```bash
-  curl -X GET "http://localhost:8000/api/patients/" -H "Authorization: Bearer <access_token>"
-  ```
-
-### **2. `/patients/connect-doctor/{connect_token}`**
-- **Method**: `POST`
-- **Description**: Connects a patient to a doctor using a token.
-- **Parameters**:
-  - `connect_token` (string): Token for connection.
-- **Response**: Doctor object.
-- **Example**:
-  ```bash
-  curl -X POST "http://localhost:8000/api/patients/connect-doctor/<connect_token>" -H "Authorization: Bearer <access_token>"
-  ```
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "email": "user@example.com",
+      "is_active": true,
+      "role": "PATIENT",
+      "id": 123
+    }
+  ]
+}
+```
 
 ---
 
-## **File Endpoints (`/files`)**
+## File Endpoints (`/files`)
 
-### **1. `/files/images`**
-- **Method**: `POST`
-- **Description**: Uploads an image for processing.
-- **Parameters**:
-  - `file` (file): Image file.
-- **Response**: Task ID for processing.
-- **Example**:
-  ```bash
-  curl -X POST "http://localhost:8000/api/files/images" -F "file=@image.jpg" -H "Authorization: Bearer <access_token>"
-  ```
+### 1. Get Image (`GET /files/images/{scan_id}`)
+Retrieve an image by scan ID.
 
-### **2. `/files/images/{file_name}`**
-- **Method**: `GET`
-- **Description**: Retrieves a processed image.
-- **Parameters**:
-  - `file_name` (string): Name of the file.
-- **Response**: Image file.
-- **Example**:
-  ```bash
-  curl -X GET "http://localhost:8000/api/files/images/example.jpg" -H "Authorization: Bearer <access_token>"
-  ```
+**Parameters:**
+- `scan_id`: string (path parameter)
+
+**Response (200):**
+- Content-Type: image/jpeg
+- Body: Binary image data
+
+**Error Responses:**
+- 404: File not found
+- 500: Failed to get image content
 
 ---
 
-## **X-ray Endpoints (`/xray`)**
+## Patient Endpoints (`/patients`)
 
-### **1. `/xray/friendly-analysis`**
-- **Method**: `POST`
-- **Description**: Provides treatment suggestions using a friendly AI model.
-- **Parameters**:
-  - `task_id` (string): X-ray analysis task ID.
-  - `symptoms` (string): User symptoms.
-- **Response**: Task ID for suggestions.
-- **Example**:
-  ```bash
-  curl -X POST "http://localhost:8000/api/xray/friendly-analysis" -d '{"task_id": "abc123", "symptoms": "cough"}' -H "Authorization: Bearer <access_token>"
-  ```
+### 1. Get Patients for Doctor (`GET /patients/`)
+Retrieve all patients associated with the current doctor.
 
-### **2. `/xray/expert-analysis`**
-- **Method**: `POST`
-- **Description**: Provides treatment suggestions using an expert AI model.
-- **Parameters**:
-  - `task_id` (string): X-ray analysis task ID.
-  - `symptoms` (string): User symptoms.
-- **Response**: Task ID for suggestions.
-- **Example**:
-  ```bash
-  curl -X POST "http://localhost:8000/api/xray/expert-analysis" -d '{"task_id": "abc123", "symptoms": "fever"}' -H "Authorization: Bearer <access_token>"
-  ```
+**Query Parameters:**
+- `skip`: int (default: 0)
+- `limit`: int (default: 100)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 123,
+      "role": "PATIENT",
+      "is_active": true
+    }
+  ]
+}
+```
+
+### 2. Update Patient Details (`PUT /patients/{patient_user_id}`)
+Update details for a specific patient.
+
+**Parameters:**
+- `patient_user_id`: int (path parameter)
+
+**Request Body:**
+```json
+{
+  "name": "string",
+  "age": "integer",
+  "gender": "string",
+  "diagnosis": "string"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "name": "Jane Doe",
+    "age": 36,
+    "gender": "FEMALE",
+    "diagnosis": "Updated diagnosis"
+  }
+}
+```
+
+### 3. Connect to Doctor (`POST /patients/connect-doctor/{connect_token}`)
+Connect a patient to a doctor using a connection token.
+
+**Parameters:**
+- `connect_token`: string (path parameter)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 456,
+    "role": "DOCTOR",
+    "is_active": true,
+    "email": "doctor@example.com"
+  }
+}
+```
+
+### 4. Create Connect Token (`POST /patients/create-connect-token`)
+Create a token that patients can use to connect with a doctor.
+
+**Request Body:**
+```json
+{
+  "expires_in_minutes": 60
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "token": "550e8400-e29b-41d4-a716-446655440000",
+    "expires_at": "2025-05-08T11:00:00Z",
+    "doctor_id": 456
+  }
+}
+```
+
+All endpoints require authentication unless otherwise specified. Use the `Authorization` header with a Bearer token for authentication.
+
+Common Error Responses:
+- 400: Bad Request
+- 401: Unauthorized
+- 403: Forbidden
+- 404: Not Found
+- 422: Validation Error
+- 500: Internal Server Error
+
+# API Documentation (Continued)
+
+## Scan Endpoints (`/scans`)
+
+### 1. Upload Scan (`POST /scans/`)
+Upload a new medical scan for analysis.
+
+**Request Body (Multipart Form):**
+- `file`: File (image)
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+        "task_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+}
+```
+
+### 2. Get Scan Details (`GET /scans/{scan_id}`)
+Retrieve details of a specific scan.
+
+**Path Parameters:**
+- `scan_id`: integer
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "id": 123,
+        "patient_id": 456,
+        "scan_type": "XRAY",
+        "status": "COMPLETED",
+        "result": {
+            "pathologies": ["pneumonia"],
+            "confidence": 0.95
+        },
+        "created_at": "2025-05-08T10:00:00Z",
+        "completed_at": "2025-05-08T10:05:00Z"
+    }
+}
+```
 
 ---
 
-## **Task Endpoints (`/tasks`)**
+## X-ray Analysis Endpoints (`/xray`)
 
-### **1. `/tasks/status/`**
-- **Method**: `GET`
-- **Description**: Retrieves the status of a Celery task.
-- **Response**: Task status and result.
-- **Example**:
-  ```bash
-  curl -X GET "http://localhost:8000/api/tasks/status/" -H "Authorization: Bearer <access_token>"
-  ```
+### 1. Request Friendly Analysis (`POST /xray/friendly-analysis`)
+Queue a friendly AI-powered analysis of an X-ray image.
+
+**Request Body (Multipart Form):**
+- `file`: File (X-ray image)
+- `include_suggestions`: boolean (optional, default: true)
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+        "estimated_time": "30 seconds"
+    }
+}
+```
+
+### 2. Request Expert Analysis (`POST /xray/expert-analysis`)
+Queue an expert-level AI analysis of an X-ray image.
+
+**Request Body (Multipart Form):**
+- `file`: File (X-ray image)
+- `additional_notes`: string (optional)
+- `priority`: string (enum: "LOW", "MEDIUM", "HIGH")
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+        "priority": "HIGH",
+        "estimated_time": "2 minutes"
+    }
+}
+```
+
+### 3. Get Treatment Suggestions (`POST /xray/suggest-treatment`)
+Get AI-powered treatment suggestions based on X-ray analysis.
+
+**Request Body:**
+```json
+{
+    "analysis_task_id": "string",
+    "symptoms": "string",
+    "patient_age": integer,
+    "patient_gender": "string"
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "suggestions": [
+            {
+                "condition": "string",
+                "confidence": number,
+                "treatment": "string",
+                "precautions": "string"
+            }
+        ],
+        "disclaimer": "string"
+    }
+}
+```
 
 ---
 
-## **Scan Endpoints (`/scans`)**
+## Task Management Endpoints (`/tasks`)
 
-### **1. `/scans/`**
-- **Method**: `POST`
-- **Description**: Creates a new scan for the current patient.
-- **Parameters**:
-  - `scan_type` (string): Type of scan.
-  - `image_path` (string): Path to the image.
-  - `status` (string): Scan status.
-- **Response**: Scan object.
-- **Example**:
-  ```bash
-  curl -X POST "http://localhost:8000/api/scans/" -d '{"scan_type": "X-ray", "image_path": "/path/to/image", "status": "pending"}' -H "Authorization: Bearer <access_token>"
-  ```
+### 1. Get Task Status (`GET /tasks/status/{task_id}`)
+Check the status of an asynchronous task.
 
-### **2. `/scans/{scan_id}`**
-- **Method**: `GET`
-- **Description**: Retrieves a specific scan by ID.
-- **Parameters**:
-  - `scan_id` (int): ID of the scan.
-- **Response**: Scan object.
-- **Example**:
-  ```bash
-  curl -X GET "http://localhost:8000/api/scans/1" -H "Authorization: Bearer <access_token>"
-  ```
+**Path Parameters:**
+- `task_id`: string
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+        "status": "COMPLETED",
+        "progress": 100,
+        "result": {
+            "type": "analysis",
+            "data": {}
+        }
+    }
+}
+```
+
+### 2. WebSocket Task Updates (`WebSocket /tasks/status/ws`)
+Receive real-time updates about task progress.
+
+**Connection Parameters:**
+- `token`: string (Query parameter for authentication)
+- `task_ids`: string (Comma-separated list of task IDs to monitor)
+
+**WebSocket Messages:**
+```json
+{
+    "task_id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "IN_PROGRESS",
+    "progress": 45,
+    "message": "Processing image..."
+}
+```
+
+### 3. Cancel Task (`POST /tasks/cancel/{task_id}`)
+Cancel a running task.
+
+**Path Parameters:**
+- `task_id`: string
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+        "status": "CANCELLED",
+        "message": "Task cancelled successfully"
+    }
+}
+```
+
+### Common HTTP Status Codes
+
+- `200`: Success
+- `400`: Bad Request
+- `401`: Unauthorized
+- `403`: Forbidden (insufficient permissions)
+- `404`: Not Found
+- `422`: Validation Error
+- `500`: Internal Server Error
+
+### Authentication
+
+All endpoints require authentication via Bearer token in the Authorization header:
+```
+Authorization: Bearer <access_token>
+```
+
+### Rate Limiting
+
+- Standard rate limit: 100 requests per minute
+- WebSocket connections: 5 concurrent connections per user
+- File upload size limit: 50MB per file
+
+### Notes
+
+1. All timestamps are in ISO 8601 format and UTC timezone
+2. File uploads support JPEG, PNG, and DICOM formats
+3. WebSocket connections will auto-disconnect after 30 minutes of inactivity

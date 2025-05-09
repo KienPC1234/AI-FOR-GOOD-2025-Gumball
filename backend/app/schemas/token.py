@@ -1,6 +1,4 @@
-from typing import Optional
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -64,7 +62,8 @@ class DoctorConnectTokenCreate(BaseModel):
 
 
 class DoctorConnectToken(DoctorConnectTokenBase):
-    id: int
+    token: int
+    expires_at: str
     doctor_id: int
 
     class Config:

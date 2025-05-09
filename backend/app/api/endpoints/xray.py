@@ -1,17 +1,11 @@
-import gzip
+from fastapi import APIRouter, HTTPException, Depends, Body
 
-from fastapi import APIRouter, UploadFile, HTTPException, Depends, Body
-from celery.result import AsyncResult
-
-from app import schemas
 from app.api import deps
-from app.celery_app import celery_app
+from app.api.response import APIResponse
 from app.core.storage import user_storage
 from app.core.security import create_task_token
-from app.extypes import ScanStatus
 from app.models import User
 from app.tasks import \
-    analyze_xray_task, \
     friendly_ai_xray_analysis_task, expert_ai_xray_analysis_task # , \
     # create_medical_record_task, validate_diagnosis_task, enhance_medical_record_task
 from app.utils import AsyncDBWrapper
@@ -21,14 +15,16 @@ router = APIRouter()
 
 
 @router.post("/friendly-analysis",
-    response_model=dict,
+    response_model=APIResponse[str],
     responses={
         200: {
             "description": "Analysis queued",
             "content": {
                 "application/json": {
                     "example": {
-                        "task_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        "success": True,
+                        "message": "Task generated",
+                        "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                     }
                 }
             }
@@ -65,20 +61,24 @@ async def friendly_suggest_treatment(
 
     # Use AI to provide treatment suggestions
     ai_task = friendly_ai_xray_analysis_task.delay(current_user, scan_id, symptoms)
-    return {
-        "task_token": create_task_token(current_user, ai_task)
-    }
+    return APIResponse(
+        success=True,
+        message="Task generated",
+        data=create_task_token(current_user, ai_task)
+    )
 
 
 @router.post("/expert-analysis",
-    response_model=dict,
+    response_model=APIResponse[str],
     responses={
         200: {
             "description": "Analysis queued",
             "content": {
                 "application/json": {
                     "example": {
-                        "task_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        "success": True,
+                        "message": "Task generated",
+                        "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                     }
                 }
             }
@@ -114,6 +114,8 @@ async def expert_suggest_treatment(
 
     # Use AI to provide treatment suggestions
     ai_task = expert_ai_xray_analysis_task.delay(current_user, scan_id, symptoms)
-    return {
-        "task_token": create_task_token(current_user, ai_task)
-    }
+    return APIResponse(
+        success=True,
+        message="Task generated",
+        data=create_task_token(current_user, ai_task)
+    )

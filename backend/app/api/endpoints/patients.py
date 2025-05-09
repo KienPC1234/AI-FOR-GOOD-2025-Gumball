@@ -1,17 +1,13 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Body, Depends, HTTPException
-from fastapi.encoders import jsonable_encoder
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, HTTPException
 
 from app import models, schemas
-from app.api import deps
+from app.api import deps, APIResponse, DEMO_USER_PUBLIC_DATA, DEMO_PATIENT_DETAILS, DEMO_RESPONSE
 from app.extypes import UserRole
 from app.utils.db_wrapper import AsyncDBWrapper
-from app.core.security import generate_security_stamp, get_password_hash
 
 logger = logging.getLogger(__name__)
 
@@ -19,17 +15,13 @@ router = APIRouter()
 
 
 @router.get("/", 
-    response_model=List[schemas.UserPublicInfo],
+    response_model=APIResponse[list[schemas.UserPublicInfo]],
     responses={
         200: {
             "description": "List of patients retrieved successfully",
             "content": {
                 "application/json": {
-                    "example": [{
-                        "id": 123,
-                        "role": "PATIENT",
-                        "is_active": True,
-                    }]
+                    "example": DEMO_RESPONSE([DEMO_USER_PUBLIC_DATA])
                 }
             }
         },
@@ -40,7 +32,7 @@ async def get_patients_for_doctor(
     limit: int = 100,
     current_user: models.User = Depends(deps.get_current_active_user),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> List[schemas.User]:
+):
     """
     Retrieve all patients associated with the current doctor.
 
@@ -59,22 +51,20 @@ async def get_patients_for_doctor(
     if current_user.role != UserRole.DOCTOR:
         raise HTTPException(status_code=403, detail="Only doctors can access this endpoint")
 
-    return await db.get_patients_from_doctor_id(current_user.id, skip=skip, limit=limit)
+    return APIResponse(
+        success=True,
+        data=await db.get_patients_from_doctor_id(current_user.id, skip=skip, limit=min(limit, 100))
+    )
 
 
 @router.put("/{patient_user_id}", 
-    response_model=schemas.PatientDetails,
+    response_model=APIResponse[schemas.PatientDetails],
     responses={
         200: {
             "description": "Patient details updated successfully",
             "content": {
                 "application/json": {
-                    "example": {
-                        "name": "Jane Doe",
-                        "age": 36,
-                        "gender": "FEMALE",
-                        "diagnosis": "Updated diagnosis"
-                    }
+                    "example": DEMO_RESPONSE(DEMO_PATIENT_DETAILS)
                 }
             }
         },
@@ -86,7 +76,7 @@ async def update_patient_details(
     patient_in: schemas.PatientDetailsUpdate,
     current_user: models.User = Depends(deps.get_current_active_user),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> models.PatientDetails:
+):
     """
     Update details for a specific patient.
 
@@ -131,18 +121,22 @@ async def update_patient_details(
 
     logger.info(f"Doctor {current_user.email} updated details for patient user {patient_user.email}")
 
-    return patient_details
+    return APIResponse(
+        success=True,
+        data=patient_details
+    )
 
 
 @router.delete("/{patient_user_id}", 
-    response_model=dict,
+    response_model=APIResponse,
     responses={
         200: {
             "description": "Patient successfully removed",
             "content": {
                 "application/json": {
                     "example": {
-                        "message": "Patient user soft deleted successfully"
+                        "success": True,
+                        "message": "Patient user unlinked successfully"
                     }
                 }
             }
@@ -154,7 +148,7 @@ async def unlink_patient_user(
     patient_user_id: int,
     current_user: models.User = Depends(deps.get_current_active_user),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> dict:
+):
     """
     Remove a patient from the doctor's patient list.
 
@@ -189,22 +183,20 @@ async def unlink_patient_user(
 
     logger.info(f"Doctor {current_user.email} removed association with patient user {patient_user.email}")
 
-    return {"message": "Patient user soft deleted successfully"}
+    return APIResponse(
+        success=True,
+        message="Patient user unlinked successfully"
+    )
 
 
 @router.get("/{patient_user_id}/doctors", 
-    response_model=List[schemas.UserPublicInfo],
+    response_model=APIResponse[list[schemas.UserPublicInfo]],
     responses={
         200: {
             "description": "List of doctors retrieved successfully",
             "content": {
                 "application/json": {
-                    "example": [{
-                        "id": 456,
-                        "role": "DOCTOR",
-                        "is_active": True,
-                        "email": "doctor@example.com"
-                    }]
+                    "example": DEMO_RESPONSE([DEMO_USER_PUBLIC_DATA])
                 }
             }
         },
@@ -215,7 +207,7 @@ async def get_doctors_for_patient_user(
     patient_user_id: int,
     current_user: models.User = Depends(deps.get_current_active_user),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> List[models.User]:
+):
     """
     Get all doctors associated with a patient.
 
@@ -236,22 +228,20 @@ async def get_doctors_for_patient_user(
 
     doctors = await db.get_doctors_from_patient_id(patient_user_id)
 
-    return doctors
+    return APIResponse(
+        success=True,
+        data=doctors
+    )
 
 
 @router.post("/connect-doctor/{connect_token}", 
-    response_model=schemas.UserPublicInfo,
+    response_model=APIResponse[schemas.UserPublicInfo],
     responses={
         200: {
             "description": "Successfully connected to doctor",
             "content": {
                 "application/json": {
-                    "example": {
-                        "id": 456,
-                        "role": "DOCTOR",
-                        "is_active": True,
-                        "email": "doctor@example.com"
-                    }
+                    "example": DEMO_RESPONSE(DEMO_USER_PUBLIC_DATA)
                 }
             }
         },
@@ -263,7 +253,7 @@ async def connect_to_doctor(
     connect_token: str,
     current_user: models.User = Depends(deps.get_current_active_user),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> models.User:
+):
     """
     Connect a patient to a doctor using a connection token.
 
@@ -309,31 +299,34 @@ async def connect_to_doctor(
     token.is_used = True
     await db.commit()
 
-    return doctor
+    return APIResponse(
+        success=True,
+        data=doctor
+    )
 
 
 @router.post("/create-connect-token", 
-    response_model=schemas.DoctorConnectToken,
+    response_model=APIResponse[schemas.DoctorConnectToken],
     responses={
         200: {
             "description": "Connect token created successfully",
             "content": {
                 "application/json": {
-                    "example": {
+                    "example": DEMO_RESPONSE({
                         "token": "550e8400-e29b-41d4-a716-446655440000",
                         "expires_at": "2025-05-02T15:00:00Z",
                         "doctor_id": 456
-                    }
+                    })
                 }
             }
         },
         403: {"description": "Not a doctor"}
     })
 async def create_connect_token(
-    token_data: schemas.DoctorConnectTokenCreate,
+    token_data: APIResponse[schemas.DoctorConnectTokenCreate],
     current_user: models.User = Depends(deps.get_current_active_user),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> schemas.DoctorConnectToken:
+):
     """
     Create a token that patients can use to connect with a doctor.
 
@@ -364,17 +357,21 @@ async def create_connect_token(
 
     await db.save_connect_token(connect_token)
 
-    return connect_token
+    return APIResponse(
+        success=True,
+        data=connect_token
+    )
 
 
 @router.delete("/revoke-connect-token/{connect_token}", 
-    response_model=dict,
+    response_model=APIResponse,
     responses={
         200: {
             "description": "Token successfully revoked",
             "content": {
                 "application/json": {
                     "example": {
+                        "success": True,
                         "message": "Token revoked successfully"
                     }
                 }
@@ -414,4 +411,7 @@ async def revoke_connect_token(
     await db.delete(token)
     await db.commit()
 
-    return {"message": "Token revoked successfully"}
+    return APIResponse(
+        success=True,
+        message="Token revoked successfully"
+    )

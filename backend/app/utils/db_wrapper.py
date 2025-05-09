@@ -1,11 +1,12 @@
 from typing import Optional, Any, List
 
-from sqlalchemy import select
+from sqlalchemy import select, Select
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.models as models
 from app.extypes import UserRole
+from app.db.base_class import Base
 from app.models import PatientDetails, User, Scan, DoctorConnectToken
 
 
@@ -23,7 +24,7 @@ class AsyncDBWrapper:
 
     # General save method
 
-    async def save_model(self, model: 'Base'):
+    async def save_model(self, model: Base):
         """
         Save a model to the database.
         """

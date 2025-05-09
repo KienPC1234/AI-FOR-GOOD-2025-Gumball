@@ -13,9 +13,9 @@ from sqlalchemy import create_engine
 
 import app.middlewares as middlewares
 from app.api.api import api_router
+from app.api.response import APIResponse
 from app.core.config import settings
 from app.db.base import Base
-from app.models.user import User
 from app.extypes import GumballException
 
 
@@ -39,43 +39,61 @@ app = FastAPI(
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc: Exception):
-    return JSONResponse(status_code=500, content={
-        "detail": "Internal server error",
-        "messages": ({"type": exc.__class__.__name__},)
-    })
+    return JSONResponse(
+        status_code=500,
+        content=APIResponse(
+            success=False,
+            message="Internal server error",
+            errors=(
+                {"type": exc.__class__.__name__, "detail": str(exc)},
+            ),
+        ),
+    )
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
-    return JSONResponse(status_code=exc.status_code, content={
-        "detail": exc.detail
-    })
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=APIResponse(
+            success=False,
+            message=exc.detail
+        )
+    )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
-    return JSONResponse(status_code=422, content={
-        "detail": "Validation error",
-        "messages": [
+    return JSONResponse(status_code=422, content=APIResponse(
+        success=False,
+        message="Validation error",
+        errors=[
             {"msg": error["msg"], "type": error["type"]}
             for error in exc.errors()
         ]
-    })
+    ))
 
 @app.exception_handler(PydanticValidationError)
 async def pydantic_validation_exception_handler(request, exc: PydanticValidationError):
-    return JSONResponse(status_code=422, content={
-        "detail": "Validation error",
-        "messages": [
-            {"msg": error["msg"], "type": error["type"]}
-            for error in exc.errors()
-        ]
-    })
+    return JSONResponse(
+        status_code=422,
+        content=APIResponse(
+            success=False,
+            message="Validation error",
+            errors=[
+                {"msg": error["msg"], "type": error["type"]}
+                for error in exc.errors()
+            ],
+        ),
+    )
 
 @app.exception_handler(GumballException)
 async def pydantic_validation_exception_handler(request, exc: GumballException):
-    return JSONResponse(status_code=422, content={
-        "detail": "Gumball exception",
-        "message": str(exc)
-    })
+    return JSONResponse(status_code=422, content=APIResponse(
+        success=False,
+        message="Gumball exception",
+        errors=(
+            {"type": exc.__class__.__name__, "detail": str(exc)},
+        )
+    ))
 
 
 middlewares.apply_middlewares(app)
@@ -83,16 +101,20 @@ middlewares.apply_middlewares(app)
 app.include_router(api_router, prefix="/api")
 
 
-@app.get("/api/docs", include_in_schema=False)
+@app.get("/api/docs", include_in_schema=False, response_model=APIResponse[str])
 async def custom_swagger_ui_html():
     """
     Custom Swagger UI.
     """
-    return get_swagger_ui_html(
-        openapi_url="/api/openapi.json",
-        title=f"{settings.PROJECT_NAME} - Swagger UI",
-        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
-        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
+    return APIResponse(
+        success=True,
+        message="Swagger UI loaded successfully",
+        data=get_swagger_ui_html(
+            openapi_url="/api/openapi.json",
+            title=f"{settings.PROJECT_NAME} - Swagger UI",
+            swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
+            swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
+        ),
     )
 
 
@@ -101,11 +123,16 @@ async def get_open_api_endpoint():
     """
     Returns the OpenAPI schema.
     """
-    return get_openapi(
+    schema = get_openapi(
         title=f"{settings.PROJECT_NAME} API",
         version="1.0.0",
         description="API documentation",
         routes=app.routes,
+    )
+    return APIResponse(
+        success=True,
+        message="OpenAPI schema retrieved successfully",
+        data=schema,
     )
 
 
@@ -114,7 +141,11 @@ def root():
     """
     Root endpoint.
     """
-    return '"ok"'
+    return APIResponse(
+        success=True,
+        message="Root endpoint is working",
+        data="ok",
+    )
 
 
 if __name__ == "__main__":

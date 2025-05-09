@@ -1,33 +1,32 @@
 from typing import List
 
 from celery import chain
-from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
 from app import models, schemas
-from app.api import deps
+from app.api import deps, APIResponse, DEMO_SCAN_DATA, DEMO_RESPONSE
 from app.core.config import settings
 from app.core.security import create_task_token
-from app.core.storage import user_storage, UPLOADED_IMG_DIR
+from app.core.storage import user_storage
 from app.extypes import UserRole, ScanType, ScanStatus
 from app.tasks import convert_to_jpeg_task, analyze_xray_task
-from app.utils import utcnow, AsyncDBWrapper, get_fext
-from app.utils.async_file import async_save_file
+from app.utils import AsyncDBWrapper, get_fext, async_save_file
 
 
 router = APIRouter()
 
 
 @router.post("/", 
-    response_model=dict,
+    response_model=APIResponse[dict],
     responses={
         200: {
             "description": "Scan successfully created and processing started",
             "content": {
                 "application/json": {
-                    "example": {
+                    "example": DEMO_RESPONSE({
                         "task_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                         "scan_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-                    }
+                    })
                 }
             }
         },
@@ -38,7 +37,7 @@ async def create_and_process_scan(
     image: UploadFile = File(...),
     current_user: models.User = Depends(deps.get_current_active_user),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> dict:
+):
     """
     Create a new scan and start processing pipeline.
 
@@ -80,7 +79,7 @@ async def create_and_process_scan(
     )
 
     # Save the uploaded image asynchronously
-    image_path = await async_save_file(user_folder.abs_of(UPLOADED_IMG_DIR), image, scan.id + img_ext)
+    image_path = await async_save_file(user_folder.upload_dir, image, scan.id + img_ext)
 
     await db.save_scan(scan)
 
@@ -91,27 +90,23 @@ async def create_and_process_scan(
     )
     task_result = task_chain.apply_async()
 
-    return {
-        "task_token": create_task_token(current_user, task_result),
-        "scan_id": scan.id,
-    }
+    return APIResponse(
+        success=True,
+        data={
+            "task_token": create_task_token(current_user, task_result),
+            "scan_id": scan.id,
+        }
+    )
 
 
 @router.get("/{scan_id}",
-        response_model=schemas.Scan,
+        response_model=APIResponse[schemas.Scan],
         responses={
         200: {
             "description": "Retrieved successfully",
             "content": {
                 "application/json": {
-                    "example": {
-                        "id": "xxxxxxxxxxxxxxxxxxxxxx",
-                        "type": "XRAY",
-                        "status": "ANALYZED",
-                        "patient_user_id": 123,
-                        "created_at": "2025-05-02T15:00:00Z",
-                        "updated_at": "2025-05-02T15:00:00Z",
-                    }
+                    "example": DEMO_RESPONSE(DEMO_SCAN_DATA)
                 }
             }
         },
@@ -136,24 +131,20 @@ async def get_scan(
         if not patient_user or current_user not in patient_user.patient_doctors:
              raise HTTPException(status_code=403, detail="You do not have access to this scan")
 
-    return scan
+    return APIResponse(
+        success=True,
+        data=scan
+    )
 
 
 @router.get("/patient/{patient_user_id}",
-        response_model=List[schemas.Scan],
+        response_model=APIResponse[List[schemas.Scan]],
         responses={
         200: {
             "description": "Retrieved successfully",
             "content": {
                 "application/json": {
-                    "example": [{
-                        "id": "xxxxxxxxxxxxxxxxxxxxxx",
-                        "type": "XRAY",
-                        "status": "ANALYZED",
-                        "patient_user_id": 123,
-                        "created_at": "2025-05-02T15:00:00Z",
-                        "updated_at": "2025-05-02T15:00:00Z",
-                    }]
+                    "example": DEMO_RESPONSE([DEMO_SCAN_DATA])
                 }
             }
         },
@@ -175,7 +166,10 @@ async def get_scans_for_patient(
         if not patient_user or current_user not in patient_user.patient_doctors:
              raise HTTPException(status_code=403, detail="You do not have access to these scans")
 
-    return await db.get_scans_for_patient_user(patient_user_id, skip=skip, limit=limit)
+    return APIResponse(
+        success=True,
+        data=await db.get_scans_for_patient_user(patient_user_id, skip=skip, limit=min(limit, 100))
+    )
 
 # Add endpoints for updating and deleting scans if needed
 # @router.put("/{scan_id}", response_model=schemas.Scan)

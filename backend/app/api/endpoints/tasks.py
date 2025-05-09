@@ -1,11 +1,11 @@
 import asyncio
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
 import app.schemas as schemas
-from app.api import deps
+from app.api import deps, APIResponse
 from app.celery_app import celery_app
 from app.utils import connect_async_db
 
@@ -43,9 +43,7 @@ async def task_status_websocket(websocket: WebSocket):
 
     Message format:
     {
-        "task_id": "abc123",
         "status": "COMPLETED|FAILED|IN_PROGRESS",
-        "progress": 85,  # optional
         "result": {}     # included when completed
     }
 
@@ -75,7 +73,7 @@ async def task_status_websocket(websocket: WebSocket):
             if result.ready():
                 await websocket.send_json({
                     "status": result.state,
-                    "result": result.result
+                    # "result": result.result
                 })
                 break
             await asyncio.sleep(1)  # Avoid busy-waiting
@@ -84,14 +82,15 @@ async def task_status_websocket(websocket: WebSocket):
     
 
 @router.post("/cancel/", 
-    response_model=dict,
+    response_model=APIResponse,
     responses={
         500: {
             "description": "Failed to cancel a task",
             "content": {
                 "application/json": {
                     "example": {
-                        "error": True
+                        "success": False,
+                        "message": "..."
                     }
                 }
             }
@@ -101,8 +100,8 @@ async def task_status_websocket(websocket: WebSocket):
             "content": {
                 "application/json": {
                     "example": {
-                        "status": "cancelled",
-                        "error": None
+                        "success": True,
+                        "message": "Task cancelled"
                     }
                 }
             }
@@ -129,21 +128,26 @@ async def cancel_task(
 
         if not result.ready():
             result.revoke(terminate=True, signal='SIGKILL')
-            return {
-                "status": "cancelled",
-                "error": None
-            }
+            return JSONResponse(
+                APIResponse(
+                    success=True,
+                    message="Task cancelled"
+                ),
+                status_code=200
+            )
         else:
             return JSONResponse(
-                {
-                    "error": True
-                },
+                APIResponse(
+                    success=False,
+                    message="Cannot cancel task"
+                ),
                 status_code=400
             )
     except Exception:
         return JSONResponse(
-            {
-                "error": True
-            },
-            status_code=400
+            APIResponse(
+                success=False,
+                message="Internal error occurred"
+            ),
+            status_code=500
         )    

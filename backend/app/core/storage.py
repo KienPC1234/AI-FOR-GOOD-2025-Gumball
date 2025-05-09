@@ -254,6 +254,22 @@ class UserFolder(Storage):
     def folder_name(self):
         return f"user_{self.user_id}"
     
+    @property
+    def upload_dir(self):
+        return self._root_dir / UPLOADED_IMG_DIR
+    
+    @property
+    def analysis_dir(self):
+        return self._root_dir / ANALYSIS_DIR
+    
+    @property
+    def inspection_dir(self):
+        return self._root_dir / INSPECTION_DIR
+    
+    @property
+    def diagnosis_dir(self):
+        return self._root_dir / DIAGNOSIS_DIR
+    
     def diagnosis(self, scan_id: str):
         return self._map_path(f"{scan_id}.md", self.base_dir / DIAGNOSIS_DIR)
     

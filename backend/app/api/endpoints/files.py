@@ -1,5 +1,3 @@
-from io import BufferedIOBase
-
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 

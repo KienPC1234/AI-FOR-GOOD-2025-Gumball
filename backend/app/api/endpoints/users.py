@@ -1,11 +1,9 @@
 from typing import Any, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException
-from fastapi.encoders import jsonable_encoder
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models, schemas
-from app.api import deps
+from app.api import deps, APIResponse, DEMO_USER_DATA, DEMO_RESPONSE
 from app.extypes import UserRole
 from app.utils.db_wrapper import AsyncDBWrapper
 
@@ -14,21 +12,13 @@ router = APIRouter()
 
 
 @router.get("/",
-        response_model=List[schemas.User],
+        response_model=APIResponse[List[schemas.User]],
         responses={
         200: {
             "description": "Read successfully",
             "content": {
                 "application/json": {
-                    "example": [{
-                        "email": "user@example.com",
-                        "is_active": True,
-                        "is_superuser": False,
-                        "role": "PATIENT",
-                        "id": 123,
-                        "created_at": "1900-01-01 01:01:01.1",
-                        "updated_at": "1900-01-01 01:01:01.1"
-                    }]
+                    "example": DEMO_RESPONSE([DEMO_USER_DATA])
                 }
             }
         },
@@ -42,7 +32,7 @@ async def read_users(
     is_active: bool = None,
     is_deleted: bool = None,
     current_user: models.User = Depends(deps.get_current_active_superuser),
-) -> Any:
+):
     """
     Retrieve users with optional filtering by email or username. Only for superusers.
     """
@@ -50,59 +40,49 @@ async def read_users(
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Insufficient privileges")
 
-    return await db.list_users(
-        skip=skip, limit=limit,
-        role=role,
-        is_active=is_active,
-        is_deleted=is_deleted,
+    return APIResponse(
+        success=True,
+        data=await db.list_users(
+            skip=skip, limit=limit,
+            role=role,
+            is_active=is_active,
+            is_deleted=is_deleted,
+        )
     )
 
 
 @router.get("/me",
-        response_model=schemas.User,
+        response_model=APIResponse[schemas.User],
         responses={
         200: {
             "description": "Retrieved successfully",
             "content": {
                 "application/json": {
-                    "example": {
-                        "email": "user@example.com",
-                        "is_active": True,
-                        "is_superuser": False,
-                        "role": "PATIENT",
-                        "id": 123,
-                        "created_at": "1900-01-01 01:01:01.1",
-                        "updated_at": "1900-01-01 01:01:01.1"
-                    }
+                    "example": DEMO_RESPONSE(DEMO_USER_DATA)
                 }
             }
         },
     })
 def read_user_me(
     current_user: models.User = Depends(deps.get_current_active_user),
-) -> Any:
+):
     """
     Get current user.
     """
-    return current_user
+    return APIResponse(
+        success=True,
+        data=current_user
+    )
 
 
 @router.put("/me",
-        response_model=schemas.User,
+        response_model=APIResponse[schemas.User],
         responses={
         200: {
             "description": "Updated successfully",
             "content": {
                 "application/json": {
-                    "example": {
-                        "email": "user@example.com",
-                        "is_active": True,
-                        "is_superuser": False,
-                        "role": "PATIENT",
-                        "id": 123,
-                        "created_at": "1900-01-01 01:01:01.1",
-                        "updated_at": "1900-01-01 01:01:01.1"
-                    }
+                    "example": DEMO_RESPONSE(DEMO_USER_DATA)
                 }
             }
         },
@@ -128,25 +108,20 @@ async def update_user_me(
 
     await db.save_user(current_user)
     
-    return current_user
+    return APIResponse(
+        success=True,
+        data=current_user
+    )
 
 
 @router.get("/{user_id}",
-        response_model=schemas.User,
+        response_model=APIResponse[schemas.User],
         responses={
         200: {
             "description": "Retrieved successfully",
             "content": {
                 "application/json": {
-                    "example": {
-                        "email": "user@example.com",
-                        "is_active": True,
-                        "is_superuser": False,
-                        "role": "PATIENT",
-                        "id": 123,
-                        "created_at": "1900-01-01 01:01:01.1",
-                        "updated_at": "1900-01-01 01:01:01.1"
-                    }
+                    "example": DEMO_RESPONSE(DEMO_USER_DATA)
                 }
             }
         },
@@ -166,19 +141,23 @@ async def read_user_by_id(
 
     # Allow access if the user is the current user or a superuser
     if user.id == current_user.id or current_user.is_superuser:
-        return user
+        return APIResponse(
+            success=True,
+            data=user
+        )
 
     raise HTTPException(status_code=403, detail="Insufficient privileges")
 
 
 @router.delete("/{user_id}",
-        response_model=dict,
+        response_model=APIResponse,
         responses={
         200: {
             "description": "User deleted successfully",
             "content": {
                 "application/json": {
                     "example": {
+                        "success": True,
                         "message": "User deleted successfully"
                     }
                 }
@@ -189,7 +168,7 @@ async def delete_user(
     user_id: int,
     current_user: models.User = Depends(deps.get_current_active_superuser),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> Any:
+):
     """
     Soft delete a user by marking them as deleted. Only for superusers.
     """
@@ -206,17 +185,21 @@ async def delete_user(
 
     await db.soft_delete_user(user)
     
-    return {"message": "User deleted successfully"}
+    return APIResponse(
+        success=True,
+        message="User deleted successfully"
+    )
 
 
 @router.post("/{user_id}/restore",
-        response_model=dict,
+        response_model=APIResponse,
         responses={
         200: {
             "description": "User restored successfully",
             "content": {
                 "application/json": {
                     "example": {
+                        "success": True,
                         "message": "User restored successfully"
                     }
                 }
@@ -227,7 +210,7 @@ async def restore_user(
     user_id: int,
     current_user: models.User = Depends(deps.get_current_active_superuser),
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
-) -> Any:
+):
     """
     Restore a soft-deleted user. Only for superusers.
     """
@@ -244,4 +227,7 @@ async def restore_user(
 
     await db.restore_user(user)
 
-    return {"message": "User restored successfully"}
+    return APIResponse(
+        success=True,
+        message="User restored successfully"
+    )

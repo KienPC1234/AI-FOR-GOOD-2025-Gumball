@@ -1,13 +1,13 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Form, Header
+from fastapi import APIRouter, Depends, HTTPException, Form
 from pydantic import BaseModel
 
 from app import models, schemas
-from app.api import deps
+from app.api import deps, APIResponse, DEMO_RESPONSE, DEMO_USER_DATA
 from app.core import security
 from app.core.config import settings
-from app.utils.db_wrapper import AsyncDBWrapper
+from app.utils import AsyncDBWrapper
 from app.tasks import send_email_task
 
 
@@ -33,17 +33,17 @@ router = APIRouter()
 
 
 @router.post("/login", 
-    response_model=schemas.Token,
+    response_model=APIResponse[schemas.Token],
     responses={
         200: {
             "description": "Login successfully",
             "content": {
                 "application/json": {
-                    "example": {
+                    "example": DEMO_RESPONSE({
                         "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                         "refresh_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                         "token_type": "bearer",
-                    }
+                    })
                 }
             }
         },
@@ -79,29 +79,24 @@ async def login_access_token(
         raise HTTPException(status_code=400, detail="Inactive user")
 
 
-    return {
-        "access_token": security.create_access_token(user),
-        "refresh_token": security.create_refresh_token(user),
-        "token_type": "bearer",
-    }
+    return APIResponse(
+        success=True,
+        data={
+            "access_token": security.create_access_token(user),
+            "refresh_token": security.create_refresh_token(user),
+            "token_type": "bearer",
+        }
+    )
 
 
 @router.post("/register", 
-    response_model=schemas.User,
+    response_model=APIResponse[schemas.User],
     responses={
         200: {
             "description": "User successfully registered",
             "content": {
                 "application/json": {
-                    "example": {
-                        "email": "user@example.com",
-                        "is_active": True,
-                        "is_superuser": False,
-                        "role": "PATIENT",
-                        "id": 123,
-                        "created_at": "1900-01-01 01:01:01.1",
-                        "updated_at": "1900-01-01 01:01:01.1"
-                    }
+                    "example": DEMO_RESPONSE(DEMO_USER_DATA)
                 }
             }
         },
@@ -111,7 +106,7 @@ async def register_user(
     *,
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
     user_in: schemas.UserCreate,
-) -> Any:
+):
     """
     Register a new user in the system.
 
@@ -147,25 +142,20 @@ async def register_user(
 
     await db.save_user(user)
 
-    return user
+    return APIResponse(
+        success=True,
+        data=user
+    )
 
 
 @router.post("/test-token", 
-    response_model=schemas.User,
+    response_model=APIResponse[schemas.User],
     responses={
         200: {
             "description": "Retrieved user data",
             "content": {
                 "application/json": {
-                    "example": {
-                        "email": "user@example.com",
-                        "is_active": True,
-                        "is_superuser": False,
-                        "role": "PATIENT",
-                        "id": 123,
-                        "created_at": "1900-01-01 01:01:01.1",
-                        "updated_at": "1900-01-01 01:01:01.1"
-                    }
+                    "example": DEMO_RESPONSE(DEMO_USER_DATA)
                 }
             }
         }
@@ -174,7 +164,10 @@ def test_token(current_user: models.User = Depends(deps.get_current_user)) -> An
     """
     Returns the current user.
     """
-    return current_user
+    return APIResponse(
+        success=True,
+        data=current_user
+    )
 
 
 class LoginRequest(BaseModel):
@@ -183,23 +176,23 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login", 
-    response_model=schemas.Token,
+    response_model=APIResponse[schemas.Token],
     responses={
         200: {
             "description": "Login successfully",
             "content": {
                 "application/json": {
-                    "example": {
+                    "example": DEMO_RESPONSE({
                         "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                         "refresh_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                         "token_type": "bearer",
-                    }
+                    })
                 }
             }
         },
         400: {"description": "Incorrect credentials or user inactive"}
     })
-@router.post("/login-simple", response_model=schemas.Token)
+@router.post("/login-simple", response_model=APIResponse[schemas.Token])
 async def login_simple(
     *,
     db: AsyncDBWrapper = Depends(deps.get_db_wrapped),
@@ -231,24 +224,27 @@ async def login_simple(
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
 
-    return {
-        "access_token": security.create_access_token(user),
-        "refresh_token": security.create_refresh_token(user),
-        "token_type": "bearer",
-    }
+    return APIResponse(
+        success=True,
+        data={
+            "access_token": security.create_access_token(user),
+            "refresh_token": security.create_refresh_token(user),
+            "token_type": "bearer",
+        }
+    )
 
 
 @router.post("/refresh-token",
-    response_model=schemas.AccessToken,
+    response_model=APIResponse[schemas.AccessToken],
     responses={
         200: {
             "description": "Access token refreshed successfully",
             "content": {
                 "application/json": {
-                    "example": {
+                    "example": DEMO_RESPONSE({
                         "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                         "token_type": "bearer",
-                    }
+                    })
                 }
             }
         },
@@ -258,10 +254,13 @@ def refresh_access_token(
     refresh_token: schemas.RefreshTokenPayload = Depends(deps.revalidate_with_refresh_token),
     current_user: models.User = Depends(deps.get_current_active_user)
 ) -> Any:
-    return {
-        "access_token": security.create_access_token(current_user),
-        "token_type": "bearer",
-    }
+    return APIResponse(
+        success=True,
+        data={
+            "access_token": security.create_access_token(current_user),
+            "token_type": "bearer",
+        }
+    )
 
 
 def send_registration_email_task(email_to: str) -> None:
